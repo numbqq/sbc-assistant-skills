@@ -1,0 +1,4 @@
+interface:
+  display_name: "VIM4 Hardware Control"
+  short_description: "Minimal Khadas VIM4 LED, GPIO, PWM, I2C/OLED, SPI, UART, and fan control helper."
+  default_prompt: "Use $vim4-hardware-control to write a minimal VIM4 hardware control script. Check the matching /dev/i2c-*, /dev/spidev1.0, or /dev/ttyS4 node before I2C/SPI/UART access."

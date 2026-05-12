@@ -1,0 +1,459 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LED_PATH="/sys/class/leds/pwmled"
+FAN_SCRIPT="/usr/local/bin/fan.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+I2C_HELPER="$SCRIPT_DIR/i2c_read_write.py"
+OLED_HELPER="$SCRIPT_DIR/oled_ssd1306_demo.py"
+SPI_HELPER="$SCRIPT_DIR/spi_transfer.py"
+SPI_DEVICE="/dev/spidev1.0"
+SPI_OVERLAY="spi0"
+UART_HELPER="$SCRIPT_DIR/uart_read_write.py"
+UART_DEVICE="/dev/ttyS4"
+UART_OVERLAY="uart_e"
+
+usage() {
+  cat <<USAGE
+Usage:
+  $0 led status
+  $0 led brightness <value>
+  $0 fan <on|auto|off|low|mid|high|temp|trig|mode>
+  $0 gpio readall
+  $0 gpio map
+  $0 gpio in <pin>
+  $0 gpio out <pin> <0|1>
+  $0 pwm write <pin> <value>
+  $0 i2c status <bus>
+  $0 i2c list
+  $0 i2c detect <bus>
+  $0 i2c read <bus> <addr> <reg> [length]
+  $0 i2c write <bus> <addr> <reg> <value>
+  $0 i2c write-bytes <bus> <addr> <byte> [byte...]
+  $0 i2c oled-demo [bus] [addr]
+  $0 spi status
+  $0 spi transfer [device] [mode] [speed] <byte> [byte...]
+  $0 uart status
+  $0 uart send [device] [baud] <text>
+  $0 uart receive [device] [baud] [timeout]
+  $0 uart loopback [device] [baud] [text]
+USAGE
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }
+}
+
+i2c_overlay_for_bus() {
+  case "$1" in
+    5) echo "i2cm_f" ;;
+    0) echo "i2cm_a" ;;
+    *) return 1 ;;
+  esac
+}
+
+i2c_header_pins_for_bus() {
+  case "$1" in
+    5) echo "PIN22/PIN23" ;;
+    0) echo "PIN25/PIN26" ;;
+    *) return 1 ;;
+  esac
+}
+
+i2c_status() {
+  bus="$1"
+  echo "bus=$bus"
+  if overlay="$(i2c_overlay_for_bus "$bus")"; then
+    pins="$(i2c_header_pins_for_bus "$bus")"
+    echo "header_pins=$pins"
+    echo "required_overlay=$overlay"
+  else
+    echo "header_pins=unknown"
+  fi
+
+  if [ -e "/dev/i2c-$bus" ]; then
+    echo "device_node=present:/dev/i2c-$bus"
+    echo "i2c_ready=yes"
+  else
+    echo "device_node=missing:/dev/i2c-$bus"
+    echo "i2c_ready=no"
+    if overlay="$(i2c_overlay_for_bus "$bus")"; then
+      pins="$(i2c_header_pins_for_bus "$bus")"
+      echo "note=$pins are not active as I2C$bus until fdt_overlays includes $overlay and the system reboots"
+    fi
+  fi
+}
+
+warn_i2c_node() {
+  bus="$1"
+  if [ ! -e "/dev/i2c-$bus" ]; then
+    if overlay="$(i2c_overlay_for_bus "$bus")"; then
+      pins="$(i2c_header_pins_for_bus "$bus")"
+      echo "warning: missing /dev/i2c-$bus; I2C$bus on $pins is unavailable until fdt_overlays includes $overlay and the system reboots" >&2
+    else
+      echo "warning: missing /dev/i2c-$bus" >&2
+    fi
+  fi
+}
+
+spi_status() {
+  echo "spi=SPI0"
+  echo "header_pins=PIN25/PIN26/PIN36/PIN37"
+  echo "required_overlay=$SPI_OVERLAY"
+  echo "overlay_config=/boot/dtb/amlogic/kvim4.dtb.overlay.env"
+  echo "device_node=$SPI_DEVICE"
+  echo "shared_pins=PIN25/PIN26 are shared with I2C0"
+  if [ -e "$SPI_DEVICE" ]; then
+    echo "spi_ready=yes"
+  else
+    echo "spi_ready=no"
+    echo "note=PIN25/PIN26/PIN36/PIN37 are not active as SPI0 until fdt_overlays includes $SPI_OVERLAY and the system reboots"
+  fi
+}
+
+warn_spi_node() {
+  device="${1:-$SPI_DEVICE}"
+  if [ ! -e "$device" ]; then
+    if [ "$device" = "$SPI_DEVICE" ]; then
+      echo "warning: missing $SPI_DEVICE; SPI0 on PIN25/PIN26/PIN36/PIN37 is unavailable until fdt_overlays includes $SPI_OVERLAY and the system reboots" >&2
+    else
+      echo "warning: missing $device" >&2
+    fi
+  fi
+}
+
+parse_spi_transfer_args() {
+  case "$#" in
+    0)
+      echo "spi transfer requires at least one byte" >&2
+      exit 1
+      ;;
+  esac
+
+  SPI_ARG_DEVICE="$SPI_DEVICE"
+  SPI_ARG_MODE="0"
+  SPI_ARG_SPEED="500000"
+  SPI_ARG_DATA=()
+
+  case "${1:-}" in
+    /dev/*)
+      SPI_ARG_DEVICE="$1"
+      shift
+      ;;
+  esac
+
+  if [ "$#" -ge 2 ] && expr "$1" : '^[0-3]$' >/dev/null && expr "$2" : '^[0-9][0-9]*$' >/dev/null; then
+    SPI_ARG_MODE="$1"
+    SPI_ARG_SPEED="$2"
+    shift 2
+  fi
+
+  if [ "$#" -eq 0 ]; then
+    echo "spi transfer requires at least one byte" >&2
+    exit 1
+  fi
+  SPI_ARG_DATA=("$@")
+}
+
+uart_status() {
+  echo "uart=UART_E"
+  echo "header_pins=PIN15(RX)/PIN16(TX)"
+  echo "required_overlay=$UART_OVERLAY"
+  echo "overlay_config=/boot/dtb/amlogic/kvim4.dtb.overlay.env"
+  echo "device_node=$UART_DEVICE"
+  if [ -e "$UART_DEVICE" ]; then
+    echo "uart_ready=yes"
+  else
+    echo "uart_ready=no"
+    echo "note=PIN15/PIN16 are not active as UART_E until fdt_overlays includes $UART_OVERLAY and the system reboots"
+  fi
+}
+
+warn_uart_node() {
+  device="${1:-$UART_DEVICE}"
+  if [ ! -e "$device" ]; then
+    if [ "$device" = "$UART_DEVICE" ]; then
+      echo "warning: missing $UART_DEVICE; UART_E on PIN15/PIN16 is unavailable until fdt_overlays includes $UART_OVERLAY and the system reboots" >&2
+    else
+      echo "warning: missing $device" >&2
+    fi
+  fi
+}
+
+parse_uart_send_args() {
+  case "$#" in
+    1)
+      UART_ARG_DEVICE="$UART_DEVICE"
+      UART_ARG_BAUD="115200"
+      UART_ARG_TEXT="$1"
+      ;;
+    2)
+      if expr "$1" : '^[0-9][0-9]*$' >/dev/null; then
+        UART_ARG_DEVICE="$UART_DEVICE"
+        UART_ARG_BAUD="$1"
+        UART_ARG_TEXT="$2"
+      else
+        UART_ARG_DEVICE="$1"
+        UART_ARG_BAUD="115200"
+        UART_ARG_TEXT="$2"
+      fi
+      ;;
+    3)
+      UART_ARG_DEVICE="$1"
+      UART_ARG_BAUD="$2"
+      UART_ARG_TEXT="$3"
+      ;;
+    *)
+      echo "uart send requires <text>, [baud] <text>, [device] <text>, or [device] [baud] <text>" >&2
+      exit 1
+      ;;
+  esac
+}
+
+parse_uart_loopback_args() {
+  case "$#" in
+    0)
+      UART_ARG_DEVICE="$UART_DEVICE"
+      UART_ARG_BAUD="115200"
+      UART_ARG_TEXT="hello"
+      ;;
+    1|2|3)
+      parse_uart_send_args "$@"
+      ;;
+    *)
+      echo "uart loopback accepts [text], [baud] [text], [device] [text], or [device] [baud] [text]" >&2
+      exit 1
+      ;;
+  esac
+}
+
+gpio_default_map() {
+  cat <<'MAP'
+Default Khadas VIM4 40-pin GPIO map from gpio readall.
+Use the wPi column with wiringpi commands such as gpio mode/read/write.
+
+Physical  wPi  GPIO  Name       Mode  V  Pull   Notes
+13        1    420   SPDIFOUT   IN    0  P/D    GPIO-capable; alternate SPDIF signal name
+15        2    491   PIN.Y7     IN    0  P/D    GPIO by default; UART_E RX when uart_e is active
+16        3    490   PIN.Y6     IN    1  P/U    GPIO by default; UART_E TX when uart_e is active
+18        4    413   PIN.D1     ALT0  1  P/U    Alternate function by default
+19        5    414   PIN.D2     ALT0  1  DSBLD  Alternate function by default
+22        6    501   PIN.Y17    IN    1  P/U    GPIO by default; I2C5 when i2cm_f is active
+23        7    502   PIN.Y18    IN    1  P/U    GPIO by default; I2C5 when i2cm_f is active
+25        8    466   PIN.T20    IN    1  P/D    GPIO by default; I2C0 when i2cm_a is active; shared with SPI0
+26        9    467   PIN.T21    IN    1  P/D    GPIO by default; I2C0 when i2cm_a is active; shared with SPI0
+29        10   447   PIN.T1     IN    0  P/D    GPIO input by default
+30        11   446   PIN.T0     IN    0  P/D    GPIO input by default
+31        12   449   PIN.T3     IN    0  P/D    GPIO input by default
+32        13   448   PIN.T2     IN    0  P/D    GPIO input by default
+33        14   450   PIN.T4     IN    0  P/D    GPIO input by default
+35        15   492   PIN.Y8     IN    0  P/D    GPIO input by default
+36        16   464   PIN.T18    IN    0  P/D    GPIO by default; SPI0 when spi0 is active
+37        17   465   PIN.T19    IN    0  P/D    GPIO by default; SPI0 when spi0 is active
+39        18   417   PIN.D5     ALT0  0  DSBLD  Alternate function by default
+
+ADC-only entries:
+Physical  wPi  Name
+10        19   ADC_CH6
+12        20   ADC_CH3
+
+Non-GPIO/reserved/power pins:
+1,2=5V  20,27=3V3  5,9,14,21,24,28,34,40=GND  11=VDD1V8
+6=VCCMCU  3,4=HUB_D4N/HUB_D4P  7,8=MCUBOOT0/MCUSWDIO  38=PWR_EN1
+MAP
+}
+
+case "${1:-}" in
+  led)
+    case "${2:-}" in
+      status)
+        test -d "$LED_PATH" || { echo "missing LED path: $LED_PATH" >&2; exit 1; }
+        echo "path=$LED_PATH"
+        echo -n "brightness="; cat "$LED_PATH/brightness"
+        echo -n "max_brightness="; cat "$LED_PATH/max_brightness"
+        ;;
+      brightness)
+        value="${3:?brightness value required}"
+        test -d "$LED_PATH" || { echo "missing LED path: $LED_PATH" >&2; exit 1; }
+        case "$value" in
+          ''|*[!0-9]*) echo "brightness must be a non-negative integer" >&2; exit 1 ;;
+        esac
+        max_brightness="$(cat "$LED_PATH/max_brightness")"
+        case "$max_brightness" in
+          ''|*[!0-9]*) echo "invalid max_brightness: $max_brightness" >&2; exit 1 ;;
+        esac
+        if [ "$value" -gt "$max_brightness" ]; then
+          echo "brightness must be 0..$max_brightness" >&2
+          exit 1
+        fi
+        echo "$value" | sudo tee "$LED_PATH/brightness" >/dev/null
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  fan)
+    action="${2:-}"
+    case "$action" in
+      on|auto|off|low|mid|high|temp|trig|mode)
+        test -x "$FAN_SCRIPT" || { echo "missing fan script: $FAN_SCRIPT" >&2; exit 1; }
+        "$FAN_SCRIPT" "$action"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  gpio)
+    case "${2:-}" in
+      readall)
+        need_cmd gpio
+        gpio readall
+        ;;
+      map) gpio_default_map ;;
+      in)
+        need_cmd gpio
+        pin="${3:?pin required}"
+        gpio mode "$pin" in
+        gpio read "$pin"
+        ;;
+      out)
+        need_cmd gpio
+        pin="${3:?pin required}"
+        value="${4:?0 or 1 required}"
+        case "$value" in
+          0|1) ;;
+          *) echo "gpio value must be 0 or 1" >&2; exit 1 ;;
+        esac
+        gpio mode "$pin" out
+        gpio write "$pin" "$value"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  pwm)
+    need_cmd gpio
+    case "${2:-}" in
+      write)
+        pin="${3:?pin required}"
+        value="${4:?pwm value required}"
+        case "$value" in
+          ''|*[!0-9]*) echo "pwm value must be a non-negative integer" >&2; exit 1 ;;
+        esac
+        gpio mode "$pin" pwm
+        gpio pwm "$pin" "$value"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  i2c)
+    case "${2:-}" in
+      status)
+        bus="${3:?bus required}"
+        i2c_status "$bus"
+        ;;
+      list)
+        need_cmd i2cdetect
+        i2cdetect -l
+        ;;
+      detect)
+        need_cmd i2cdetect
+        bus="${3:?bus required}"
+        warn_i2c_node "$bus"
+        i2cdetect -y "$bus"
+        ;;
+      read)
+        need_cmd python3
+        test -f "$I2C_HELPER" || { echo "missing i2c helper: $I2C_HELPER" >&2; exit 1; }
+        warn_i2c_node "${3:?bus required}"
+        python3 "$I2C_HELPER" read \
+          --bus "$3" \
+          --addr "${4:?addr required}" \
+          --reg "${5:?reg required}" \
+          --length "${6:-1}"
+        ;;
+      write)
+        need_cmd python3
+        test -f "$I2C_HELPER" || { echo "missing i2c helper: $I2C_HELPER" >&2; exit 1; }
+        warn_i2c_node "${3:?bus required}"
+        python3 "$I2C_HELPER" write \
+          --bus "$3" \
+          --addr "${4:?addr required}" \
+          --reg "${5:?reg required}" \
+          --value "${6:?value required}"
+        ;;
+      write-bytes)
+        need_cmd python3
+        test -f "$I2C_HELPER" || { echo "missing i2c helper: $I2C_HELPER" >&2; exit 1; }
+        bus="${3:?bus required}"
+        addr="${4:?addr required}"
+        warn_i2c_node "$bus"
+        shift 4
+        if [ "$#" -eq 0 ]; then
+          echo "at least one byte is required" >&2
+          exit 1
+        fi
+        python3 "$I2C_HELPER" write-bytes --bus "$bus" --addr "$addr" --data "$@"
+        ;;
+      oled-demo)
+        need_cmd python3
+        test -f "$OLED_HELPER" || { echo "missing oled helper: $OLED_HELPER" >&2; exit 1; }
+        bus="${3:-5}"
+        warn_i2c_node "$bus"
+        python3 "$OLED_HELPER" --bus "$bus" --addr "${4:-0x3c}"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  spi)
+    case "${2:-}" in
+      status)
+        spi_status
+        ;;
+      transfer)
+        need_cmd python3
+        test -f "$SPI_HELPER" || { echo "missing spi helper: $SPI_HELPER" >&2; exit 1; }
+        shift 2
+        parse_spi_transfer_args "$@"
+        warn_spi_node "$SPI_ARG_DEVICE"
+        python3 "$SPI_HELPER" transfer \
+          --device "$SPI_ARG_DEVICE" \
+          --mode "$SPI_ARG_MODE" \
+          --speed "$SPI_ARG_SPEED" \
+          --data "${SPI_ARG_DATA[@]}"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  uart)
+    case "${2:-}" in
+      status)
+        uart_status
+        ;;
+      send)
+        need_cmd python3
+        test -f "$UART_HELPER" || { echo "missing uart helper: $UART_HELPER" >&2; exit 1; }
+        shift 2
+        parse_uart_send_args "$@"
+        warn_uart_node "$UART_ARG_DEVICE"
+        python3 "$UART_HELPER" send --device "$UART_ARG_DEVICE" --baud "$UART_ARG_BAUD" --text "$UART_ARG_TEXT"
+        ;;
+      receive)
+        need_cmd python3
+        test -f "$UART_HELPER" || { echo "missing uart helper: $UART_HELPER" >&2; exit 1; }
+        device="${3:-$UART_DEVICE}"
+        baud="${4:-115200}"
+        timeout="${5:-5}"
+        warn_uart_node "$device"
+        python3 "$UART_HELPER" receive --device "$device" --baud "$baud" --timeout "$timeout"
+        ;;
+      loopback)
+        need_cmd python3
+        test -f "$UART_HELPER" || { echo "missing uart helper: $UART_HELPER" >&2; exit 1; }
+        shift 2
+        parse_uart_loopback_args "$@"
+        warn_uart_node "$UART_ARG_DEVICE"
+        python3 "$UART_HELPER" loopback --device "$UART_ARG_DEVICE" --baud "$UART_ARG_BAUD" --text "$UART_ARG_TEXT"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  *) usage; exit 1 ;;
+esac

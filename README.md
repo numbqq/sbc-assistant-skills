@@ -11,6 +11,9 @@ and debug small Bash or Python scripts for board peripherals.
 ## Repository Layout
 
 ```text
+scripts/
+└── install.sh
+
 codex/
 └── vim4-hardware-control-skills/
     ├── SKILL.md
@@ -65,20 +68,57 @@ commands that write hardware state.
 
 ### Codex
 
-Install the VIM4 skill into your Codex skills directory:
+Install the VIM4 skill into your Codex skills directory with one command:
+
+```bash
+./scripts/install.sh
+```
+
+Or specify the target tool explicitly:
+
+```bash
+./scripts/install.sh --tool codex
+```
+
+Preview the source and target paths without copying files:
+
+```bash
+./scripts/install.sh --dry-run
+```
+
+The installer copies:
+
+```text
+codex/vim4-hardware-control-skills/
+```
+
+to:
+
+```text
+${CODEX_HOME:-$HOME/.codex}/skills/vim4-hardware-control-skills/
+```
+
+Manual install is also supported:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 cp -a codex/vim4-hardware-control-skills "${CODEX_HOME:-$HOME/.codex}/skills/"
 ```
 
-After installation, reference the skill in Codex as:
+After installation, restart Codex if it is already running, then reference the
+skill as:
 
 ```text
 $vim4-hardware-control
 ```
 
-To update an existing local installation:
+To update an existing local installation, rerun:
+
+```bash
+./scripts/install.sh --tool codex
+```
+
+Manual update:
 
 ```bash
 rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/vim4-hardware-control-skills"

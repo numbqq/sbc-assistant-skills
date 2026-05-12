@@ -1,6 +1,6 @@
 ---
 name: vim4-hardware-control
-description: minimal hardware control helper for Khadas VIM4 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, GPIO, PWM, I2C, SPI, OLED, UART, or fan control on VIM4. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking the matching /dev/i2c-* node exists, SPI0 uses /dev/spidev1.0 after enabling the spi0 overlay, and UART_E uses /dev/ttyS4 after enabling the uart_e overlay.
+description: minimal hardware control helper for Khadas VIM4 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED, UART, or fan control on VIM4. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_raw, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking the matching /dev/i2c-* node exists, SPI0 uses /dev/spidev1.0 after enabling the spi0 overlay, and UART_E uses /dev/ttyS4 after enabling the uart_e overlay.
 ---
 
 # VIM4 Hardware Control
@@ -12,6 +12,7 @@ Use this skill to help generate and troubleshoot minimal hardware-control script
 Supported only:
 - LED via `/sys/class/leds/pwmled`
 - FAN via `/usr/local/bin/fan.sh`
+- ADC via IIO sysfs raw nodes under `/sys/bus/iio/devices/iio:device0`
 - GPIO via wiringpi
 - PWM via wiringpi
 - I2C via Linux `/dev/i2c-*` and Python `I2C_SLAVE` ioctl
@@ -27,6 +28,7 @@ For VIM4 40-pin I2C, SPI, or UART, check whether the matching device node exists
 - OS: Ubuntu 24.04
 - Script languages: Python or Bash
 - `wiringpi` is installed and available for GPIO/PWM on the target system
+- ADC header inputs are read-only raw IIO values with a 0 to 1.8V input range: PIN10 is ADC_CH6 at `/sys/bus/iio/devices/iio:device0/in_voltage6_raw`; PIN12 is ADC_CH3 at `/sys/bus/iio/devices/iio:device0/in_voltage3_raw`
 - I2C access uses `/dev/i2c-<bus>` after the matching bus is exposed by the system
 - 40-pin header PIN22/PIN23 are I2C5 when `i2cm_f` has been enabled and the system has rebooted
 - 40-pin header PIN25/PIN26 are I2C0 when `i2cm_a` has been enabled and the system has rebooted
@@ -45,16 +47,17 @@ Before generating commands that write hardware state:
 3. Remind the user that GPIO/PWM pin numbering must match wiringpi numbering on the target board.
 4. Use `sudo` only when needed for sysfs writes, wiringpi access, or `/dev/i2c-*` permissions.
 5. For fan control, use `/usr/local/bin/fan.sh`; do not invent MCU register writes.
-6. For I2C on bus 5 or bus 0, check `/dev/i2c-5` or `/dev/i2c-0` before I2C reads/writes.
-7. For I2C writes, confirm the bus and address with read-only discovery first when possible.
-8. For SPI0, check `/dev/spidev1.0` before SPI transfers.
-9. For SPI writes/transfers, confirm SPI mode, speed, bits per word, chip-select wiring, and voltage level first when possible.
-10. For UART_E, check `/dev/ttyS4` before serial reads/writes.
-11. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
+6. For ADC, read only the matching `in_voltage*_raw` file; do not treat ADC pins as digital GPIO outputs.
+7. For I2C on bus 5 or bus 0, check `/dev/i2c-5` or `/dev/i2c-0` before I2C reads/writes.
+8. For I2C writes, confirm the bus and address with read-only discovery first when possible.
+9. For SPI0, check `/dev/spidev1.0` before SPI transfers.
+10. For SPI writes/transfers, confirm SPI mode, speed, bits per word, chip-select wiring, and voltage level first when possible.
+11. For UART_E, check `/dev/ttyS4` before serial reads/writes.
+12. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
 
 ## Workflow
 
-1. Identify the requested hardware block: LED, FAN, GPIO, PWM, I2C, SPI, or UART.
+1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, or UART.
 2. Generate the smallest working Bash or Python script.
 3. Include a read/check command when possible.
 4. Include short usage examples.
@@ -78,6 +81,32 @@ cat /sys/class/leds/pwmled/trigger
 ```
 
 For simple on/off or brightness scripts, write to `brightness`. Use `max_brightness` to avoid invalid values.
+
+## ADC through Linux IIO sysfs
+
+Use raw IIO files:
+
+```bash
+/sys/bus/iio/devices/iio:device0/in_voltage6_raw
+/sys/bus/iio/devices/iio:device0/in_voltage3_raw
+```
+
+40-pin header ADC mapping:
+- PIN10 is ADC_CH6 at `/sys/bus/iio/devices/iio:device0/in_voltage6_raw`
+- PIN12 is ADC_CH3 at `/sys/bus/iio/devices/iio:device0/in_voltage3_raw`
+- ADC input voltage range is 0 to 1.8V
+
+Useful checks:
+
+```bash
+scripts/vim4_hw_minimal.sh adc status
+scripts/vim4_hw_minimal.sh adc read 6
+scripts/vim4_hw_minimal.sh adc read 3
+cat /sys/bus/iio/devices/iio:device0/in_voltage6_raw
+cat /sys/bus/iio/devices/iio:device0/in_voltage3_raw
+```
+
+ADC raw values are board/driver raw readings. Do not convert raw values to voltage unless the raw resolution or IIO scale is known for the target image.
 
 ## FAN control
 

@@ -19,6 +19,7 @@ codex/
     ├── references/
     │   └── vim4-minimal-hardware.md
     └── scripts/
+        ├── adc_read.py
         ├── fan_control_demo.sh
         ├── i2c_read_write.py
         ├── oled_ssd1306_demo.py
@@ -49,6 +50,7 @@ Supported VIM4 hardware areas:
 
 - LED via `/sys/class/leds/pwmled`
 - Fan via `/usr/local/bin/fan.sh`
+- ADC via Linux IIO raw nodes
 - GPIO via wiringpi
 - PWM via wiringpi
 - I2C via Linux `/dev/i2c-*`
@@ -96,6 +98,7 @@ From the VIM4 skill directory:
 ```bash
 cd codex/vim4-hardware-control-skills
 scripts/vim4_hw_minimal.sh gpio map
+scripts/vim4_hw_minimal.sh adc status
 scripts/vim4_hw_minimal.sh i2c status 5
 scripts/vim4_hw_minimal.sh spi status
 scripts/vim4_hw_minimal.sh uart status
@@ -104,16 +107,29 @@ scripts/vim4_hw_minimal.sh uart status
 Example helper commands:
 
 ```bash
+python3 scripts/adc_read.py read 6
+python3 scripts/adc_read.py watch 3 --interval 1 --count 5
 sudo python3 scripts/i2c_read_write.py read --bus 5 --addr 0x40 --reg 0x00
 sudo python3 scripts/oled_ssd1306_demo.py --bus 5 --addr 0x3c
 sudo python3 scripts/spi_transfer.py transfer --device /dev/spidev1.0 --data 0x9f 0x00 0x00 0x00
 sudo python3 scripts/uart_read_write.py send --device /dev/ttyS4 --baud 115200 --text "hello"
 ```
 
+ADC raw reads:
+
+```bash
+scripts/vim4_hw_minimal.sh adc read 6
+scripts/vim4_hw_minimal.sh adc read 3
+python3 scripts/adc_read.py status
+```
+
 ## Hardware Notes
 
 - Confirm live board state before writing to GPIO, PWM, I2C, UART, LED, or fan
   controls.
+- PIN10 is ADC_CH6 at `/sys/bus/iio/devices/iio:device0/in_voltage6_raw`;
+  PIN12 is ADC_CH3 at `/sys/bus/iio/devices/iio:device0/in_voltage3_raw`.
+- ADC input voltage range is 0 to 1.8V.
 - Use wiringpi pin numbers for `gpio` commands unless a script explicitly says
   otherwise.
 - Check `/dev/i2c-*` nodes before I2C access.

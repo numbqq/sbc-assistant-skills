@@ -3,6 +3,7 @@ set -euo pipefail
 
 LED_PATH="/sys/class/leds/pwmled"
 FAN_SCRIPT="/usr/local/bin/fan.sh"
+IIO_DEVICE="/sys/bus/iio/devices/iio:device0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 I2C_HELPER="$SCRIPT_DIR/i2c_read_write.py"
 OLED_HELPER="$SCRIPT_DIR/oled_ssd1306_demo.py"
@@ -19,6 +20,8 @@ Usage:
   $0 led status
   $0 led brightness <value>
   $0 fan <on|auto|off|low|mid|high|temp|trig|mode>
+  $0 adc status
+  $0 adc read <3|6>
   $0 gpio readall
   $0 gpio map
   $0 gpio in <pin>
@@ -42,6 +45,61 @@ USAGE
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }
+}
+
+adc_raw_path_for_channel() {
+  case "$1" in
+    3) echo "$IIO_DEVICE/in_voltage3_raw" ;;
+    6) echo "$IIO_DEVICE/in_voltage6_raw" ;;
+    *) return 1 ;;
+  esac
+}
+
+adc_header_pin_for_channel() {
+  case "$1" in
+    3) echo "PIN12/ADC_CH3" ;;
+    6) echo "PIN10/ADC_CH6" ;;
+    *) return 1 ;;
+  esac
+}
+
+adc_status() {
+  echo "iio_device=$IIO_DEVICE"
+  echo "voltage_range=0..1.8V"
+  for channel in 6 3; do
+    pin="$(adc_header_pin_for_channel "$channel")"
+    path="$(adc_raw_path_for_channel "$channel")"
+    echo "channel=$channel"
+    echo "header_pin=$pin"
+    echo "raw_path=$path"
+    if [ -r "$path" ]; then
+      echo "adc_ready=yes"
+      echo -n "raw="
+      cat "$path"
+    else
+      echo "adc_ready=no"
+      echo "note=missing or unreadable $path"
+    fi
+  done
+}
+
+adc_read() {
+  channel="$1"
+  if ! path="$(adc_raw_path_for_channel "$channel")"; then
+    echo "adc channel must be 3 or 6" >&2
+    exit 1
+  fi
+  pin="$(adc_header_pin_for_channel "$channel")"
+  if [ ! -r "$path" ]; then
+    echo "missing or unreadable ADC raw node: $path" >&2
+    exit 1
+  fi
+  echo "channel=$channel"
+  echo "header_pin=$pin"
+  echo "voltage_range=0..1.8V"
+  echo "raw_path=$path"
+  echo -n "raw="
+  cat "$path"
 }
 
 i2c_overlay_for_bus() {
@@ -253,9 +311,10 @@ Physical  wPi  GPIO  Name       Mode  V  Pull   Notes
 39        18   417   PIN.D5     ALT0  0  DSBLD  Alternate function by default
 
 ADC-only entries:
-Physical  wPi  Name
-10        19   ADC_CH6
-12        20   ADC_CH3
+ADC voltage range: 0..1.8V
+Physical  wPi  Name     Raw node
+10        19   ADC_CH6  /sys/bus/iio/devices/iio:device0/in_voltage6_raw
+12        20   ADC_CH3  /sys/bus/iio/devices/iio:device0/in_voltage3_raw
 
 Non-GPIO/reserved/power pins:
 1,2=5V  20,27=3V3  5,9,14,21,24,28,34,40=GND  11=VDD1V8
@@ -264,6 +323,17 @@ MAP
 }
 
 case "${1:-}" in
+  adc)
+    case "${2:-}" in
+      status)
+        adc_status
+        ;;
+      read)
+        adc_read "${3:?channel required}"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
   led)
     case "${2:-}" in
       status)

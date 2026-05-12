@@ -4,6 +4,7 @@
 
 - Board: Khadas VIM4
 - OS: Ubuntu 24.04
+- ADC: Linux IIO sysfs raw nodes, 0 to 1.8V input range
 - GPIO/PWM: wiringpi
 - I2C: Linux `/dev/i2c-*` plus Python `I2C_SLAVE` ioctl helpers
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
@@ -82,8 +83,8 @@ ADC entries in the default table:
 
 | Physical | wPi | Name | Notes |
 | --- | ---: | --- | --- |
-| 10 | 19 | ADC_CH6 | Analog channel; no Linux GPIO number is reported in the default table. |
-| 12 | 20 | ADC_CH3 | Analog channel; no Linux GPIO number is reported in the default table. |
+| 10 | 19 | ADC_CH6 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage6_raw`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
+| 12 | 20 | ADC_CH3 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage3_raw`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
 
 Non-GPIO or reserved/power pins in the default table:
 
@@ -113,6 +114,27 @@ gpio pwm <pin> <value>
 ```
 
 Only use pins that support PWM.
+
+## ADC commands
+
+PIN10 and PIN12 are ADC inputs, not digital GPIO outputs. The ADC input voltage range is 0 to 1.8V. Read raw values through Linux IIO sysfs:
+
+| Header pin | ADC channel | Raw node |
+| --- | --- | --- |
+| PIN10 | ADC_CH6 | `/sys/bus/iio/devices/iio:device0/in_voltage6_raw` |
+| PIN12 | ADC_CH3 | `/sys/bus/iio/devices/iio:device0/in_voltage3_raw` |
+
+Useful checks:
+
+```bash
+scripts/vim4_hw_minimal.sh adc status
+scripts/vim4_hw_minimal.sh adc read 6
+scripts/vim4_hw_minimal.sh adc read 3
+cat /sys/bus/iio/devices/iio:device0/in_voltage6_raw
+cat /sys/bus/iio/devices/iio:device0/in_voltage3_raw
+```
+
+Keep ADC examples read-only. Raw values are driver readings; only convert to voltage when the target system's raw resolution or IIO scale is known.
 
 ## I2C commands
 

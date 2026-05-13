@@ -3,15 +3,17 @@
 AI assistant skills and helper scripts for single-board computer hardware
 control.
 
-This repository is organized by assistant platform. It currently provides Codex
-skills, and Claude Code skills are planned for future additions. The first
-available skill targets Khadas VIM4 on Ubuntu 24.04 and helps generate, review,
-and debug small Bash or Python scripts for board peripherals.
+This repository keeps skills in Codex skill format and provides a multi-agent
+installer that can copy the same skill bundle into the matching skill directory
+for supported AI tools. The first available skill targets Khadas VIM4 on Ubuntu
+24.04 and helps generate, review, and debug small Bash or Python scripts for
+board peripherals.
 
 ## Repository Layout
 
 ```text
 scripts/
+├── convert.sh
 └── install.sh
 
 codex/
@@ -31,12 +33,6 @@ codex/
         ├── uart_comm.py
         ├── uart_read_write.py
         └── vim4_hw_minimal.sh
-```
-
-Future platform directories may include:
-
-```text
-claude-code/
 ```
 
 ## Available Skills
@@ -66,33 +62,81 @@ commands that write hardware state.
 
 ## Installation
 
-### Codex
+The installer follows the same general pattern as multi-agent role libraries:
+choose a target with `--tool`, choose one skill with `--skill` when needed, or
+install everything with the defaults.
 
-Install the VIM4 skill into your Codex skills directory with one command:
+Convert generated integration formats:
+
+```bash
+./scripts/convert.sh
+./scripts/convert.sh --tool openclaw
+./scripts/convert.sh --tool claude-code --skill vim4-hardware-control-skills
+```
+
+Show supported Agent/tool targets:
+
+```bash
+./scripts/install.sh --list-tools
+```
+
+Install all skills into Codex:
 
 ```bash
 ./scripts/install.sh
 ```
 
-Or specify the target tool explicitly:
+Install all skills into a specific target:
 
 ```bash
 ./scripts/install.sh --tool codex
+./scripts/install.sh --tool claude-code
+./scripts/install.sh --tool hermes
+./scripts/convert.sh --tool openclaw
+./scripts/install.sh --tool openclaw
 ```
 
-Preview the source and target paths without copying files:
+Install to every supported target:
+
+```bash
+./scripts/convert.sh
+./scripts/install.sh --tool all
+```
+
+Install a single skill:
+
+```bash
+./scripts/install.sh --tool codex --skill vim4-hardware-control-skills
+```
+
+Preview source and target paths without copying files:
 
 ```bash
 ./scripts/install.sh --dry-run
+./scripts/install.sh --tool all --dry-run
 ```
 
-The installer copies:
+### Supported Targets
+
+| Tool / Agent | Default install directory | Override environment variable |
+| --- | --- | --- |
+| Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` |
+| Claude Code | `$HOME/.claude/agents/` | `CLAUDE_AGENTS_DIR` |
+| Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` |
+| OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` |
+
+Codex and Hermes receive the full `SKILL.md` bundle directory. Claude Code
+expects single Markdown subagent files, and OpenClaw expects an agent workspace.
+Run `convert.sh` before installing those targets; it writes local generated
+artifacts under the ignored `integrations/` directory.
+
+The installer discovers every skill directory found under:
 
 ```text
 codex/vim4-hardware-control-skills/
 ```
 
-to:
+For Codex, the default target path is:
 
 ```text
 ${CODEX_HOME:-$HOME/.codex}/skills/vim4-hardware-control-skills/
@@ -105,8 +149,8 @@ mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 cp -a codex/vim4-hardware-control-skills "${CODEX_HOME:-$HOME/.codex}/skills/"
 ```
 
-After installation, restart Codex if it is already running, then reference the
-skill as:
+After installation, restart the target AI tool if it is already running. In
+Codex, reference the skill as:
 
 ```text
 $vim4-hardware-control
@@ -124,12 +168,6 @@ Manual update:
 rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/vim4-hardware-control-skills"
 cp -a codex/vim4-hardware-control-skills "${CODEX_HOME:-$HOME/.codex}/skills/"
 ```
-
-### Claude Code
-
-Claude Code skills are not included yet. When they are added, install
-instructions will be documented under the corresponding `claude-code/` skill
-directory.
 
 ## Quick Usage
 

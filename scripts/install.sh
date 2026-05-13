@@ -65,6 +65,27 @@ is_supported_tool() {
   return 1
 }
 
+frontmatter_value() {
+  local key="$1"
+  local file="$2"
+  local value
+
+  value="$(awk -v key="$key" '
+    $0 == "---" && seen == 0 { seen = 1; next }
+    $0 == "---" && seen == 1 { exit }
+    seen == 1 && index($0, key ":") == 1 {
+      sub("^[^:]+:[[:space:]]*", "")
+      print
+      exit
+    }
+  ' "$file")"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  printf '%s\n' "$value"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --tool)
@@ -136,7 +157,7 @@ EOF
   while IFS= read -r skill_file; do
     [ -n "$skill_file" ] || continue
     dir="$(dirname "$skill_file")"
-    if [ "$(basename "$dir")" = "$SKILL" ] || [ "$(awk '/^name:[[:space:]]*/ { sub(/^name:[[:space:]]*/, ""); print; exit }' "$skill_file")" = "$SKILL" ]; then
+    if [ "$(basename "$dir")" = "$SKILL" ] || [ "$(frontmatter_value name "$skill_file")" = "$SKILL" ]; then
       printf '%s\n' "$dir"
       found="yes"
     fi
@@ -150,23 +171,27 @@ EOF
   fi
 }
 
+skill_name_for_dir() {
+  local source_dir="$1"
+  local skill_dir_name
+  local agent_name
+
+  skill_dir_name="$(basename "$source_dir")"
+  agent_name="$(frontmatter_value name "$source_dir/SKILL.md")"
+  [ -n "$agent_name" ] || agent_name="${skill_dir_name%-skills}"
+  printf '%s\n' "$agent_name"
+}
+
 install_skill_for_tool() {
   local tool="$1"
   local source_dir="$2"
   local target_root
-  local skill_dir_name
   local agent_name
   local target_dir
   local converted_source
 
   target_root="$(target_root_for_tool "$tool")"
-  skill_dir_name="$(basename "$source_dir")"
-  agent_name="$(awk '/^name:[[:space:]]*/ { sub(/^name:[[:space:]]*/, ""); print; exit }' "$source_dir/SKILL.md")"
-  agent_name="${agent_name%\"}"
-  agent_name="${agent_name#\"}"
-  agent_name="${agent_name%\'}"
-  agent_name="${agent_name#\'}"
-  [ -n "$agent_name" ] || agent_name="${skill_dir_name%-skills}"
+  agent_name="$(skill_name_for_dir "$source_dir")"
 
   if [ "$tool" = "claude-code" ]; then
     target_dir="$target_root/$agent_name.md"
@@ -234,18 +259,24 @@ done
 
 echo "activation:"
 for tool in $TOOLS; do
-  case "$tool" in
-    codex)
-      echo 'codex=$khadas-vim4-hardware-control'
-      ;;
-    claude-code)
-      echo 'claude-code=restart Claude Code, then use the khadas-vim4-hardware-control subagent'
-      ;;
-    hermes)
-      echo 'hermes=restart Hermes, then use the khadas-vim4-hardware-control skill'
-      ;;
-    openclaw)
-      echo 'openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent'
-      ;;
-  esac
+  while IFS= read -r source_dir; do
+    [ -n "$source_dir" ] || continue
+    agent_name="$(skill_name_for_dir "$source_dir")"
+    case "$tool" in
+      codex)
+        echo "codex=\$$agent_name"
+        ;;
+      claude-code)
+        echo "claude-code=restart Claude Code, then use the $agent_name subagent"
+        ;;
+      hermes)
+        echo "hermes=restart Hermes, then use the $agent_name skill"
+        ;;
+      openclaw)
+        echo "openclaw=restart OpenClaw gateway, then use the $agent_name agent"
+        ;;
+    esac
+  done <<EOF
+$SKILL_DIRS
+EOF
 done

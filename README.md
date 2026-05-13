@@ -1,13 +1,13 @@
-# SBC Hardware Control Skills
+# SBC Assistant Skills
 
-AI assistant skills and helper scripts for Khadas single-board computer
-hardware control and board-specific workflows.
+AI assistant skills and helper scripts for single-board computer hardware,
+accelerators, system debugging, and board-specific workflows.
 
-This repository keeps Khadas SBC skills in Codex skill format and provides a
-multi-agent installer that can copy the same skill bundle into the matching
-skill directory for supported AI tools. Skills are organized by SBC product and
-function area so the repository can grow across hardware control, NPU workflows,
-system debugging, and future board-specific capabilities.
+This repository is a reusable skill registry. Skills are stored once in Codex
+skill format under `skills/`, then converted or installed into the matching
+layout for supported AI tools. The structure is intentionally organized by SBC
+product and function area so new boards and new skill families can be added
+without changing installer behavior.
 
 ## Repository Layout
 
@@ -16,6 +16,21 @@ scripts/
 ├── convert.sh
 └── install.sh
 
+skills/
+└── <product>/
+    └── <domain>/
+        ├── SKILL.md
+        ├── agents/
+        │   └── openai.yaml
+        ├── references/
+        │   └── ...
+        └── scripts/
+            └── ...
+```
+
+Current example:
+
+```text
 skills/
 └── vim4/
     └── hardware-control/
@@ -36,24 +51,48 @@ skills/
             └── vim4_hw_minimal.sh
 ```
 
-Future skill families should follow:
+## Skill Naming
+
+Each installable skill is any directory below `skills/` that contains
+`SKILL.md`. The installer discovers these files automatically.
+
+Use this directory pattern for board-specific skills:
 
 ```text
 skills/<product>/<domain>/
 ```
 
+Use `skills/common/<domain>/` for cross-board skills that are not tied to one
+SBC product.
+
 Examples:
 
 ```text
+skills/vim4/hardware-control/
 skills/vim4/npu/
 skills/edge2/hardware-control/
 skills/edge2/npu/
 skills/common/linux-peripheral-io/
+skills/common/system-debug/
+```
+
+The `name:` field in `SKILL.md` is the public skill or agent name used by
+installers and generated integrations. Prefer stable names that include the
+vendor or board when the skill is board-specific, for example:
+
+```yaml
+name: khadas-vim4-hardware-control
 ```
 
 ## Available Skills
 
-### VIM4: `khadas-vim4-hardware-control`
+### Khadas VIM4 Hardware Control
+
+Skill name:
+
+```text
+khadas-vim4-hardware-control
+```
 
 Location:
 
@@ -61,7 +100,7 @@ Location:
 skills/vim4/hardware-control/
 ```
 
-Supported VIM4 hardware areas:
+Coverage:
 
 - LED via `/sys/class/leds/pwmled`
 - Fan via `/usr/local/bin/fan.sh`
@@ -82,26 +121,26 @@ The installer discovers every `SKILL.md` under `skills/`. Choose a target with
 `--tool`, choose one skill with `--skill` when needed, or install everything
 with the defaults.
 
-Convert generated integration formats:
-
-```bash
-./scripts/convert.sh
-./scripts/convert.sh --gemini-cli
-./scripts/convert.sh --openclaw
-./scripts/convert.sh --claude-code --skill khadas-vim4-hardware-control
-```
-
-Codex and Hermes use the native skill bundle directly, so conversion is a
-no-op for those targets. Use `install.sh` to install them.
-
-Show supported Agent/tool targets:
+Show supported targets:
 
 ```bash
 ./scripts/install.sh --list-tools
 ./scripts/convert.sh --list-tools
 ```
 
-Install all skills into Codex:
+Convert generated integration formats:
+
+```bash
+./scripts/convert.sh
+./scripts/convert.sh --tool gemini-cli
+./scripts/convert.sh --tool openclaw
+./scripts/convert.sh --tool claude-code --skill khadas-vim4-hardware-control
+```
+
+Codex and Hermes use the native skill bundle directly, so conversion is a
+no-op for those targets. Use `install.sh` to install them.
+
+Install all skills into the default target, Codex:
 
 ```bash
 ./scripts/install.sh
@@ -111,6 +150,7 @@ Install all skills into a specific target:
 
 ```bash
 ./scripts/install.sh --tool codex
+./scripts/convert.sh --tool claude-code
 ./scripts/install.sh --tool claude-code
 ./scripts/convert.sh --tool gemini-cli
 ./scripts/install.sh --tool gemini-cli
@@ -130,6 +170,7 @@ Install a single skill:
 
 ```bash
 ./scripts/install.sh --tool codex --skill khadas-vim4-hardware-control
+./scripts/install.sh --tool codex --skill skills/vim4/hardware-control
 ```
 
 Preview source and target paths without copying files:
@@ -141,56 +182,76 @@ Preview source and target paths without copying files:
 
 ### Supported Targets
 
-| Tool / Agent | Default install directory | Override environment variable |
-| --- | --- | --- |
-| Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` |
-| Claude Code | `$HOME/.claude/agents/` | `CLAUDE_AGENTS_DIR` |
-| Gemini CLI | `$HOME/.gemini/extensions/` | `GEMINI_EXTENSIONS_DIR` |
-| Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` |
-| OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` |
+| Tool / Agent | Default install directory | Override environment variable | Conversion |
+| --- | --- | --- | --- |
+| Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` | Native skill bundle |
+| Claude Code | `$HOME/.claude/agents/` | `CLAUDE_AGENTS_DIR` | Markdown agent file |
+| Gemini CLI | `$HOME/.gemini/extensions/` | `GEMINI_EXTENSIONS_DIR` | Extension directory |
+| Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` | Native skill bundle |
+| OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` | Agent workspace |
 
-Codex and Hermes receive the full `SKILL.md` bundle directory. Claude Code
-expects single Markdown subagent files, Gemini CLI expects extension
-directories with `gemini-extension.json` and `GEMINI.md`, and OpenClaw expects
-an agent workspace. Run `convert.sh` before installing converted targets; it
-writes local generated artifacts under the ignored `integrations/` directory.
-
-For Codex, the default target path is:
+Generated integration artifacts are written under the ignored
+`integrations/` directory:
 
 ```text
-${CODEX_HOME:-$HOME/.codex}/skills/khadas-vim4-hardware-control/
+integrations/
+├── claude-code/agents/<skill-name>.md
+├── gemini-cli/extensions/<skill-name>/
+└── openclaw/agents/<skill-name>/
 ```
 
-Manual install is also supported:
+Codex and Hermes receive the full source skill directory. Claude Code receives
+a single Markdown agent file. Gemini CLI receives an extension directory with
+`gemini-extension.json` and `GEMINI.md`. OpenClaw receives an agent workspace.
 
-```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-cp -a skills/vim4/hardware-control "${CODEX_HOME:-$HOME/.codex}/skills/khadas-vim4-hardware-control"
-```
+After installation, restart the target AI tool if it is already running.
 
-After installation, restart the target AI tool if it is already running. In
-Codex, reference the skill as:
+Activation examples for the current VIM4 skill:
 
 ```text
-$khadas-vim4-hardware-control
+codex=$khadas-vim4-hardware-control
+claude-code=restart Claude Code, then use the khadas-vim4-hardware-control subagent
+gemini-cli=restart Gemini CLI, then use the khadas-vim4-hardware-control extension context
+hermes=restart Hermes, then use the khadas-vim4-hardware-control skill
+openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent
 ```
 
-To update an existing local installation, rerun:
+## Adding Skills
 
-```bash
-./scripts/install.sh --tool codex
+To add support for another SBC or feature area:
+
+1. Create a new directory under `skills/<product>/<domain>/` or
+   `skills/common/<domain>/`.
+2. Add `SKILL.md` with frontmatter that includes at least `name:` and
+   `description:`.
+3. Put reusable scripts under `scripts/` and long-form board notes under
+   `references/`.
+4. Keep board-specific assumptions inside that skill instead of hardcoding them
+   in `scripts/install.sh` or `scripts/convert.sh`.
+5. Run `./scripts/convert.sh` and `./scripts/install.sh --dry-run` to verify
+   discovery, generated names, and target paths.
+
+Minimal structure:
+
+```text
+skills/<product>/<domain>/
+├── SKILL.md
+├── references/
+└── scripts/
 ```
 
-Manual update:
+`SKILL.md` frontmatter example:
 
-```bash
-rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/khadas-vim4-hardware-control"
-cp -a skills/vim4/hardware-control "${CODEX_HOME:-$HOME/.codex}/skills/khadas-vim4-hardware-control"
+```yaml
+---
+name: vendor-board-domain
+description: concise trigger description for this board or feature skill
+---
 ```
 
-## Quick Usage
+## VIM4 Quick Usage
 
-From the VIM4 skill directory:
+From the VIM4 hardware-control skill directory:
 
 ```bash
 cd skills/vim4/hardware-control
@@ -222,8 +283,16 @@ python3 scripts/adc_read.py status
 
 ## Hardware Notes
 
-- Confirm live board state before writing to GPIO, PWM, I2C, UART, LED, or fan
-  controls.
+- Confirm live board state before writing to GPIO, PWM, I2C, UART, LED, fan,
+  regulator, or accelerator controls.
+- Keep voltage limits, pin mappings, overlay requirements, device nodes, and
+  board-specific package assumptions in the matching skill documentation.
+- Prefer read-only discovery commands before commands that mutate hardware or
+  system state.
+- Use `skills/common/` only for behavior that is genuinely shared across SBCs.
+
+Current VIM4 notes:
+
 - PIN10 is ADC_CH6 at `/sys/bus/iio/devices/iio:device0/in_voltage6_raw`;
   PIN12 is ADC_CH3 at `/sys/bus/iio/devices/iio:device0/in_voltage3_raw`.
 - ADC input voltage range is 0 to 1.8V.
@@ -232,15 +301,15 @@ python3 scripts/adc_read.py status
 - Check `/dev/i2c-*` nodes before I2C access.
 - Check `/dev/spidev1.0` before SPI0 access.
 - Check `/dev/ttyS4` before UART_E access.
-- VIM4 40-pin I2C, SPI, and UART overlays require a reboot before the runtime device
-  nodes appear.
+- VIM4 40-pin I2C, SPI, and UART overlays require a reboot before the runtime
+  device nodes appear.
 - SPI0 uses PIN25/PIN26/PIN36/PIN37 after the `spi0` overlay is active, and
   shares PIN25/PIN26 with I2C0.
 - UART wiring should use 3.3V TTL levels, cross-connected TX/RX, and common GND.
 
 ## Reference
 
-See the detailed VIM4 notes in:
+Detailed VIM4 notes:
 
 ```text
 skills/vim4/hardware-control/references/vim4-minimal-hardware.md

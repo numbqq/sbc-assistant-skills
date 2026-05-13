@@ -10,7 +10,7 @@ usage() {
 Usage:
   $0 [--tool TOOL] [--skill NAME|all]
   $0 --tool all [--skill NAME|all]
-  $0 --codex|--claude-code|--hermes|--openclaw [--skill NAME|all]
+  $0 --codex|--claude-code|--gemini-cli|--hermes|--openclaw [--skill NAME|all]
   $0 --list-tools
   $0 --help
 
@@ -19,6 +19,7 @@ Options:
   --tool all        Convert to every supported integration format. Default: all.
   --codex           No conversion needed; install with install.sh.
   --claude-code     Convert to Claude Code agent files.
+  --gemini-cli      Convert to Gemini CLI extensions.
   --hermes          No conversion needed; install with install.sh.
   --openclaw        Convert to OpenClaw agent workspaces.
   --skill NAME      Convert one skill directory name. Default: all.
@@ -28,7 +29,7 @@ USAGE
 }
 
 conversion_tools() {
-  printf '%s\n' claude-code openclaw
+  printf '%s\n' claude-code gemini-cli openclaw
 }
 
 native_tools() {
@@ -80,6 +81,10 @@ skill_body() {
   ' "$1"
 }
 
+json_escape() {
+  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 display_name_for_skill() {
   local source_dir="$1"
   local agent_name="$2"
@@ -113,6 +118,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --claude-code)
       TOOL="claude-code"
+      shift
+      ;;
+    --gemini-cli)
+      TOOL="gemini-cli"
       shift
       ;;
     --hermes)
@@ -214,6 +223,45 @@ convert_claude_code() {
   echo "converted=claude-code:$target_file"
 }
 
+convert_gemini_cli() {
+  local source_dir="$1"
+  local agent_name
+  local description
+  local escaped_description
+  local target_dir
+
+  agent_name="$(skill_name_for_dir "$source_dir")"
+  description="$(frontmatter_value description "$source_dir/SKILL.md")"
+  escaped_description="$(printf '%s' "$description" | json_escape)"
+  target_dir="$INTEGRATIONS_ROOT/gemini-cli/extensions/$agent_name"
+
+  rm -rf "$target_dir"
+  mkdir -p "$target_dir/skill"
+
+  cat > "$target_dir/gemini-extension.json" <<EOF
+{
+  "name": "$agent_name",
+  "version": "1.0.0",
+  "description": "$escaped_description",
+  "contextFileName": "GEMINI.md"
+}
+EOF
+
+  cat > "$target_dir/GEMINI.md" <<EOF
+# $agent_name
+
+This Gemini CLI extension was generated from the $agent_name skill.
+
+Use the instructions below as the assistant's operating rules. Bundled
+references and helper scripts are copied under ./skill/ for local lookup.
+
+EOF
+  skill_body "$source_dir/SKILL.md" >> "$target_dir/GEMINI.md"
+  cp -a "$source_dir/." "$target_dir/skill/"
+
+  echo "converted=gemini-cli:$target_dir"
+}
+
 convert_openclaw() {
   local source_dir="$1"
   local agent_name
@@ -280,6 +328,9 @@ reset_selected_integrations() {
       claude-code)
         rm -rf "$INTEGRATIONS_ROOT/claude-code"
         ;;
+      gemini-cli)
+        rm -rf "$INTEGRATIONS_ROOT/gemini-cli"
+        ;;
       openclaw)
         rm -rf "$INTEGRATIONS_ROOT/openclaw"
         ;;
@@ -307,6 +358,9 @@ for tool in $TOOLS; do
     case "$tool" in
       claude-code)
         convert_claude_code "$source_dir"
+        ;;
+      gemini-cli)
+        convert_gemini_cli "$source_dir"
         ;;
       openclaw)
         convert_openclaw "$source_dir"

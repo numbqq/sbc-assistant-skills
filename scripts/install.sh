@@ -25,13 +25,14 @@ Options:
 Environment overrides:
   CODEX_HOME          Codex home directory. Default: \$HOME/.codex
   CLAUDE_AGENTS_DIR   Claude Code agents directory. Default: \$HOME/.claude/agents
+  GEMINI_EXTENSIONS_DIR Gemini CLI extensions directory. Default: \$HOME/.gemini/extensions
   HERMES_SKILLS_DIR   Hermes skills directory. Default: \$HOME/.hermes/skills
   OPENCLAW_AGENTS_DIR OpenClaw agents directory. Default: \$HOME/.openclaw/agency-agents
 USAGE
 }
 
 supported_tools() {
-  printf '%s\n' codex claude-code hermes openclaw
+  printf '%s\n' codex claude-code gemini-cli hermes openclaw
 }
 
 target_root_for_tool() {
@@ -44,6 +45,9 @@ target_root_for_tool() {
       ;;
     claude-code)
       printf '%s\n' "${CLAUDE_AGENTS_DIR:-$HOME/.claude/agents}"
+      ;;
+    gemini-cli)
+      printf '%s\n' "${GEMINI_EXTENSIONS_DIR:-$HOME/.gemini/extensions}"
       ;;
     openclaw)
       printf '%s\n' "${OPENCLAW_AGENTS_DIR:-$HOME/.openclaw/agency-agents}"
@@ -195,6 +199,8 @@ install_skill_for_tool() {
 
   if [ "$tool" = "claude-code" ]; then
     target_dir="$target_root/$agent_name.md"
+  elif [ "$tool" = "gemini-cli" ]; then
+    target_dir="$target_root/$agent_name"
   elif [ "$tool" = "openclaw" ]; then
     target_dir="$target_root/$agent_name"
   else
@@ -218,6 +224,16 @@ install_skill_for_tool() {
     else
       cp "$source_dir/SKILL.md" "$target_dir"
     fi
+  elif [ "$tool" = "gemini-cli" ]; then
+    converted_source="$INTEGRATIONS_ROOT/gemini-cli/extensions/$agent_name"
+    if [ ! -d "$converted_source" ]; then
+      echo "missing converted Gemini CLI extension: $converted_source" >&2
+      echo "run: $REPO_ROOT/scripts/convert.sh --tool gemini-cli --skill $agent_name" >&2
+      exit 1
+    fi
+
+    rm -rf "$target_dir"
+    cp -a "$converted_source" "$target_dir"
   elif [ "$tool" = "openclaw" ]; then
     converted_source="$INTEGRATIONS_ROOT/openclaw/agents/$agent_name"
     if [ ! -d "$converted_source" ]; then
@@ -268,6 +284,9 @@ for tool in $TOOLS; do
         ;;
       claude-code)
         echo "claude-code=restart Claude Code, then use the $agent_name subagent"
+        ;;
+      gemini-cli)
+        echo "gemini-cli=restart Gemini CLI, then use the $agent_name extension context"
         ;;
       hermes)
         echo "hermes=restart Hermes, then use the $agent_name skill"

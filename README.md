@@ -86,6 +86,7 @@ Convert generated integration formats:
 
 ```bash
 ./scripts/convert.sh
+./scripts/convert.sh --gemini-cli
 ./scripts/convert.sh --openclaw
 ./scripts/convert.sh --claude-code --skill khadas-vim4-hardware-control
 ```
@@ -111,6 +112,8 @@ Install all skills into a specific target:
 ```bash
 ./scripts/install.sh --tool codex
 ./scripts/install.sh --tool claude-code
+./scripts/convert.sh --tool gemini-cli
+./scripts/install.sh --tool gemini-cli
 ./scripts/install.sh --tool hermes
 ./scripts/convert.sh --tool openclaw
 ./scripts/install.sh --tool openclaw
@@ -142,13 +145,15 @@ Preview source and target paths without copying files:
 | --- | --- | --- |
 | Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` |
 | Claude Code | `$HOME/.claude/agents/` | `CLAUDE_AGENTS_DIR` |
+| Gemini CLI | `$HOME/.gemini/extensions/` | `GEMINI_EXTENSIONS_DIR` |
 | Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` |
 | OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` |
 
 Codex and Hermes receive the full `SKILL.md` bundle directory. Claude Code
-expects single Markdown subagent files, and OpenClaw expects an agent workspace.
-Run `convert.sh` before installing those targets; it writes local generated
-artifacts under the ignored `integrations/` directory.
+expects single Markdown subagent files, Gemini CLI expects extension
+directories with `gemini-extension.json` and `GEMINI.md`, and OpenClaw expects
+an agent workspace. Run `convert.sh` before installing converted targets; it
+writes local generated artifacts under the ignored `integrations/` directory.
 
 For Codex, the default target path is:
 

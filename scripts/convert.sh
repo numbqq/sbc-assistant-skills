@@ -10,20 +10,34 @@ usage() {
 Usage:
   $0 [--tool TOOL] [--skill NAME|all]
   $0 --tool all [--skill NAME|all]
+  $0 --codex|--claude-code|--hermes|--openclaw [--skill NAME|all]
   $0 --list-tools
   $0 --help
 
 Options:
   --tool TOOL       Convert to one supported integration format.
   --tool all        Convert to every supported integration format. Default: all.
+  --codex           No conversion needed; install with install.sh.
+  --claude-code     Convert to Claude Code agent files.
+  --hermes          No conversion needed; install with install.sh.
+  --openclaw        Convert to OpenClaw agent workspaces.
   --skill NAME      Convert one skill directory name. Default: all.
-  --list-tools      Show supported conversion targets.
+  --list-tools      Show supported targets.
   --help            Show this help.
 USAGE
 }
 
-supported_tools() {
+conversion_tools() {
   printf '%s\n' claude-code openclaw
+}
+
+native_tools() {
+  printf '%s\n' codex hermes
+}
+
+supported_tools() {
+  native_tools
+  conversion_tools
 }
 
 is_supported_tool() {
@@ -76,11 +90,38 @@ display_name_for_skill() {
   printf '%s\n' "$value"
 }
 
+skill_name_for_dir() {
+  local source_dir="$1"
+  local skill_dir_name
+  local agent_name
+
+  skill_dir_name="$(basename "$source_dir")"
+  agent_name="$(frontmatter_value name "$source_dir/SKILL.md")"
+  [ -n "$agent_name" ] || agent_name="${skill_dir_name%-skills}"
+  printf '%s\n' "$agent_name"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --tool)
       TOOL="${2:?tool name required}"
       shift 2
+      ;;
+    --codex)
+      TOOL="codex"
+      shift
+      ;;
+    --claude-code)
+      TOOL="claude-code"
+      shift
+      ;;
+    --hermes)
+      TOOL="hermes"
+      shift
+      ;;
+    --openclaw)
+      TOOL="openclaw"
+      shift
       ;;
     --skill)
       SKILL="${2:?skill name required}"
@@ -108,8 +149,8 @@ if [ "$LIST_TOOLS" = "yes" ]; then
 fi
 
 if [ "$TOOL" != "all" ] && ! is_supported_tool "$TOOL"; then
-  echo "unsupported conversion target: $TOOL" >&2
-  echo "supported conversion targets:" >&2
+  echo "unsupported target: $TOOL" >&2
+  echo "supported targets:" >&2
   supported_tools >&2
   exit 1
 fi
@@ -221,6 +262,31 @@ EOF
   echo "converted=openclaw:$target_dir"
 }
 
+report_native_tool() {
+  local tool="$1"
+  local source_dir="$2"
+  local agent_name
+
+  agent_name="$(skill_name_for_dir "$source_dir")"
+  echo "native=$tool:$agent_name"
+  echo "run: $REPO_ROOT/scripts/install.sh --tool $tool --skill $agent_name"
+}
+
+reset_selected_integrations() {
+  local tool
+
+  for tool in $TOOLS; do
+    case "$tool" in
+      claude-code)
+        rm -rf "$INTEGRATIONS_ROOT/claude-code"
+        ;;
+      openclaw)
+        rm -rf "$INTEGRATIONS_ROOT/openclaw"
+        ;;
+    esac
+  done
+}
+
 SKILL_DIRS="$(collect_skill_dirs)"
 if [ -z "$SKILL_DIRS" ]; then
   echo "no installable skills found under: $SOURCE_ROOT" >&2
@@ -228,12 +294,12 @@ if [ -z "$SKILL_DIRS" ]; then
 fi
 
 if [ "$TOOL" = "all" ]; then
-  TOOLS="$(supported_tools)"
+  TOOLS="$(conversion_tools)"
 else
   TOOLS="$TOOL"
 fi
 
-rm -rf "$INTEGRATIONS_ROOT"
+reset_selected_integrations
 
 for tool in $TOOLS; do
   while IFS= read -r source_dir; do
@@ -244,6 +310,9 @@ for tool in $TOOLS; do
         ;;
       openclaw)
         convert_openclaw "$source_dir"
+        ;;
+      codex|hermes)
+        report_native_tool "$tool" "$source_dir"
         ;;
     esac
   done <<EOF

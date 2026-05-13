@@ -86,14 +86,18 @@ Convert generated integration formats:
 
 ```bash
 ./scripts/convert.sh
-./scripts/convert.sh --tool openclaw
-./scripts/convert.sh --tool claude-code --skill khadas-vim4-hardware-control
+./scripts/convert.sh --openclaw
+./scripts/convert.sh --claude-code --skill khadas-vim4-hardware-control
 ```
+
+Codex and Hermes use the native skill bundle directly, so conversion is a
+no-op for those targets. Use `install.sh` to install them.
 
 Show supported Agent/tool targets:
 
 ```bash
 ./scripts/install.sh --list-tools
+./scripts/convert.sh --list-tools
 ```
 
 Install all skills into Codex:

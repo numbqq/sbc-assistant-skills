@@ -134,11 +134,10 @@ Convert generated integration formats:
 ./scripts/convert.sh
 ./scripts/convert.sh --tool gemini-cli
 ./scripts/convert.sh --tool openclaw
-./scripts/convert.sh --tool claude-code --skill khadas-vim4-hardware-control
 ```
 
-Codex and Hermes use the native skill bundle directly, so conversion is a
-no-op for those targets. Use `install.sh` to install them.
+Codex, Claude Code, and Hermes use the native skill bundle directly, so
+conversion is a no-op for those targets. Use `install.sh` to install them.
 
 Install all skills into the default target, Codex:
 
@@ -150,7 +149,6 @@ Install all skills into a specific target:
 
 ```bash
 ./scripts/install.sh --tool codex
-./scripts/convert.sh --tool claude-code
 ./scripts/install.sh --tool claude-code
 ./scripts/convert.sh --tool gemini-cli
 ./scripts/install.sh --tool gemini-cli
@@ -185,7 +183,7 @@ Preview source and target paths without copying files:
 | Tool / Agent | Default install directory | Override environment variable | Conversion |
 | --- | --- | --- | --- |
 | Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` | Native skill bundle |
-| Claude Code | `$HOME/.claude/agents/` | `CLAUDE_AGENTS_DIR` | Markdown agent file |
+| Claude Code | `$HOME/.claude/skills/` | `CLAUDE_SKILLS_DIR` | Native skill bundle |
 | Gemini CLI | `$HOME/.gemini/extensions/` | `GEMINI_EXTENSIONS_DIR` | Extension directory |
 | Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` | Native skill bundle |
 | OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` | Agent workspace |
@@ -195,14 +193,20 @@ Generated integration artifacts are written under the ignored
 
 ```text
 integrations/
-├── claude-code/agents/<skill-name>.md
 ├── gemini-cli/extensions/<skill-name>/
 └── openclaw/agents/<skill-name>/
 ```
 
-Codex and Hermes receive the full source skill directory. Claude Code receives
-a single Markdown agent file. Gemini CLI receives an extension directory with
-`gemini-extension.json` and `GEMINI.md`. OpenClaw receives an agent workspace.
+Codex, Claude Code, and Hermes receive the full source skill directory. Gemini
+CLI receives an extension directory with `gemini-extension.json` and
+`GEMINI.md`. OpenClaw receives an agent workspace.
+
+Claude Code also supports project-level skills. Use `--local` to install into
+this repository's `.claude/skills/` directory:
+
+```bash
+./scripts/install.sh --tool claude-code --local
+```
 
 After installation, restart the target AI tool if it is already running.
 
@@ -210,7 +214,7 @@ Activation examples for the current VIM4 skill:
 
 ```text
 codex=$khadas-vim4-hardware-control
-claude-code=restart Claude Code, then use the khadas-vim4-hardware-control subagent
+claude-code=restart Claude Code, then use /khadas-vim4-hardware-control
 gemini-cli=restart Gemini CLI, then use the khadas-vim4-hardware-control extension context
 hermes=restart Hermes, then use the khadas-vim4-hardware-control skill
 openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent

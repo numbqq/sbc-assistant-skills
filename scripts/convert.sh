@@ -18,7 +18,7 @@ Options:
   --tool TOOL       Convert to one supported integration format.
   --tool all        Convert to every supported integration format. Default: all.
   --codex           No conversion needed; install with install.sh.
-  --claude-code     Convert to Claude Code agent files.
+  --claude-code     No conversion needed; install with install.sh.
   --gemini-cli      Convert to Gemini CLI extensions.
   --hermes          No conversion needed; install with install.sh.
   --openclaw        Convert to OpenClaw agent workspaces.
@@ -29,11 +29,11 @@ USAGE
 }
 
 conversion_tools() {
-  printf '%s\n' claude-code gemini-cli openclaw
+  printf '%s\n' gemini-cli openclaw
 }
 
 native_tools() {
-  printf '%s\n' codex hermes
+  printf '%s\n' codex claude-code hermes
 }
 
 supported_tools() {
@@ -207,22 +207,6 @@ EOF
   fi
 }
 
-convert_claude_code() {
-  local source_dir="$1"
-  local agent_name
-  local target_dir
-  local target_file
-
-  agent_name="$(frontmatter_value name "$source_dir/SKILL.md")"
-  [ -n "$agent_name" ] || agent_name="$(basename "$source_dir" | sed 's/-skills$//')"
-  target_dir="$INTEGRATIONS_ROOT/claude-code/agents"
-  target_file="$target_dir/$agent_name.md"
-
-  mkdir -p "$target_dir"
-  cp "$source_dir/SKILL.md" "$target_file"
-  echo "converted=claude-code:$target_file"
-}
-
 convert_gemini_cli() {
   local source_dir="$1"
   local agent_name
@@ -323,11 +307,12 @@ report_native_tool() {
 reset_selected_integrations() {
   local tool
 
+  if [ "$TOOL" = "all" ]; then
+    rm -rf "$INTEGRATIONS_ROOT/claude-code"
+  fi
+
   for tool in $TOOLS; do
     case "$tool" in
-      claude-code)
-        rm -rf "$INTEGRATIONS_ROOT/claude-code"
-        ;;
       gemini-cli)
         rm -rf "$INTEGRATIONS_ROOT/gemini-cli"
         ;;
@@ -356,16 +341,13 @@ for tool in $TOOLS; do
   while IFS= read -r source_dir; do
     [ -n "$source_dir" ] || continue
     case "$tool" in
-      claude-code)
-        convert_claude_code "$source_dir"
-        ;;
       gemini-cli)
         convert_gemini_cli "$source_dir"
         ;;
       openclaw)
         convert_openclaw "$source_dir"
         ;;
-      codex|hermes)
+      codex|claude-code|hermes)
         report_native_tool "$tool" "$source_dir"
         ;;
     esac

@@ -150,7 +150,6 @@ Install all skills into a specific target:
 ```bash
 ./scripts/install.sh --tool codex
 ./scripts/install.sh --tool claude-code
-./scripts/convert.sh --tool gemini-cli
 ./scripts/install.sh --tool gemini-cli
 ./scripts/install.sh --tool hermes
 ./scripts/convert.sh --tool openclaw
@@ -184,7 +183,7 @@ Preview source and target paths without copying files:
 | --- | --- | --- | --- |
 | Codex | `${CODEX_HOME:-$HOME/.codex}/skills/` | `CODEX_HOME` | Native skill bundle |
 | Claude Code | `$HOME/.claude/skills/` | `CLAUDE_SKILLS_DIR` | Native skill bundle |
-| Gemini CLI | `$HOME/.gemini/extensions/` | `GEMINI_EXTENSIONS_DIR` | Extension directory |
+| Gemini CLI | `$HOME/.gemini/skills/` | `GEMINI_SKILLS_DIR` | Native skill bundle |
 | Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` | Native skill bundle |
 | OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` | Agent workspace |
 
@@ -197,15 +196,18 @@ integrations/
 └── openclaw/agents/<skill-name>/
 ```
 
-Codex, Claude Code, and Hermes receive the full source skill directory. Gemini
-CLI receives an extension directory with `gemini-extension.json` and
-`GEMINI.md`. OpenClaw receives an agent workspace.
+Codex, Claude Code, Gemini CLI, and Hermes receive the full source skill
+directory. OpenClaw receives an agent workspace. `convert.sh --tool gemini-cli`
+is still available when you want a Gemini CLI extension artifact; the generated
+extension bundles the skill under `skills/<skill-name>/`.
 
-Claude Code also supports project-level skills. Use `--local` to install into
-this repository's `.claude/skills/` directory:
+Claude Code and Gemini CLI also support project-level skills. Use `--local` to
+install into this repository's `.claude/skills/` and `.gemini/skills/`
+directories:
 
 ```bash
 ./scripts/install.sh --tool claude-code --local
+./scripts/install.sh --tool gemini-cli --local
 ```
 
 After installation, restart the target AI tool if it is already running.
@@ -215,7 +217,7 @@ Activation examples for the current VIM4 skill:
 ```text
 codex=$khadas-vim4-hardware-control
 claude-code=restart Claude Code, then use /khadas-vim4-hardware-control
-gemini-cli=restart Gemini CLI, then use the khadas-vim4-hardware-control extension context
+gemini-cli=restart Gemini CLI, then run /skills reload and /skills list
 hermes=restart Hermes, then use the khadas-vim4-hardware-control skill
 openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent
 ```

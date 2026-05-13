@@ -19,7 +19,7 @@ Options:
   --tool all        Convert to every supported integration format. Default: all.
   --codex           No conversion needed; install with install.sh.
   --claude-code     No conversion needed; install with install.sh.
-  --gemini-cli      Convert to Gemini CLI extensions.
+  --gemini-cli      Convert to Gemini CLI extensions with bundled Agent Skills.
   --hermes          No conversion needed; install with install.sh.
   --openclaw        Convert to OpenClaw agent workspaces.
   --skill NAME      Convert one skill directory name. Default: all.
@@ -220,7 +220,7 @@ convert_gemini_cli() {
   target_dir="$INTEGRATIONS_ROOT/gemini-cli/extensions/$agent_name"
 
   rm -rf "$target_dir"
-  mkdir -p "$target_dir/skill"
+  mkdir -p "$target_dir/skills/$agent_name"
 
   cat > "$target_dir/gemini-extension.json" <<EOF
 {
@@ -234,14 +234,10 @@ EOF
   cat > "$target_dir/GEMINI.md" <<EOF
 # $agent_name
 
-This Gemini CLI extension was generated from the $agent_name skill.
-
-Use the instructions below as the assistant's operating rules. Bundled
-references and helper scripts are copied under ./skill/ for local lookup.
+This Gemini CLI extension bundles the $agent_name Agent Skill.
 
 EOF
-  skill_body "$source_dir/SKILL.md" >> "$target_dir/GEMINI.md"
-  cp -a "$source_dir/." "$target_dir/skill/"
+  cp -a "$source_dir/." "$target_dir/skills/$agent_name/"
 
   echo "converted=gemini-cli:$target_dir"
 }

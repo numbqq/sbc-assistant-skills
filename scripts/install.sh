@@ -108,24 +108,45 @@ if [ "$TOOL" != "all" ] && ! is_supported_tool "$TOOL"; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_ROOT="$REPO_ROOT/codex"
+SOURCE_ROOT="$REPO_ROOT/skills"
 INTEGRATIONS_ROOT="$REPO_ROOT/integrations"
 
 test -d "$SOURCE_ROOT" || { echo "missing source root: $SOURCE_ROOT" >&2; exit 1; }
 
 collect_skill_dirs() {
   local dir
+  local skill_file
+  local found="no"
+
   if [ "$SKILL" = "all" ]; then
-    for dir in "$SOURCE_ROOT"/*; do
-      [ -d "$dir" ] || continue
-      [ -f "$dir/SKILL.md" ] || continue
+    while IFS= read -r skill_file; do
+      [ -n "$skill_file" ] || continue
+      dirname "$skill_file"
+    done <<EOF
+$(find "$SOURCE_ROOT" -type f -name SKILL.md | sort)
+EOF
+    return 0
+  fi
+
+  if [ -f "$SOURCE_ROOT/$SKILL/SKILL.md" ]; then
+    printf '%s\n' "$SOURCE_ROOT/$SKILL"
+    return 0
+  fi
+
+  while IFS= read -r skill_file; do
+    [ -n "$skill_file" ] || continue
+    dir="$(dirname "$skill_file")"
+    if [ "$(basename "$dir")" = "$SKILL" ] || [ "$(awk '/^name:[[:space:]]*/ { sub(/^name:[[:space:]]*/, ""); print; exit }' "$skill_file")" = "$SKILL" ]; then
       printf '%s\n' "$dir"
-    done
-  else
-    dir="$SOURCE_ROOT/$SKILL"
-    [ -d "$dir" ] || { echo "missing skill directory: $dir" >&2; return 1; }
-    [ -f "$dir/SKILL.md" ] || { echo "missing skill file: $dir/SKILL.md" >&2; return 1; }
-    printf '%s\n' "$dir"
+      found="yes"
+    fi
+  done <<EOF
+$(find "$SOURCE_ROOT" -type f -name SKILL.md | sort)
+EOF
+
+  if [ "$found" = "no" ]; then
+    echo "missing skill: $SKILL" >&2
+    return 1
   fi
 }
 
@@ -152,7 +173,7 @@ install_skill_for_tool() {
   elif [ "$tool" = "openclaw" ]; then
     target_dir="$target_root/$agent_name"
   else
-    target_dir="$target_root/$skill_dir_name"
+    target_dir="$target_root/$agent_name"
   fi
 
   echo "tool=$tool"
@@ -176,7 +197,7 @@ install_skill_for_tool() {
     converted_source="$INTEGRATIONS_ROOT/openclaw/agents/$agent_name"
     if [ ! -d "$converted_source" ]; then
       echo "missing converted OpenClaw agent: $converted_source" >&2
-      echo "run: $REPO_ROOT/scripts/convert.sh --tool openclaw --skill $skill_dir_name" >&2
+      echo "run: $REPO_ROOT/scripts/convert.sh --tool openclaw --skill $agent_name" >&2
       exit 1
     fi
 
@@ -184,7 +205,7 @@ install_skill_for_tool() {
     cp -a "$converted_source" "$target_dir"
   else
     rm -rf "$target_dir"
-    cp -a "$source_dir" "$target_root/"
+    cp -a "$source_dir" "$target_dir"
   fi
 
   echo "installed=$target_dir"
@@ -215,16 +236,16 @@ echo "activation:"
 for tool in $TOOLS; do
   case "$tool" in
     codex)
-      echo 'codex=$vim4-hardware-control'
+      echo 'codex=$khadas-vim4-hardware-control'
       ;;
     claude-code)
-      echo 'claude-code=restart Claude Code, then use the vim4-hardware-control subagent'
+      echo 'claude-code=restart Claude Code, then use the khadas-vim4-hardware-control subagent'
       ;;
     hermes)
-      echo 'hermes=restart Hermes, then use the vim4-hardware-control skill'
+      echo 'hermes=restart Hermes, then use the khadas-vim4-hardware-control skill'
       ;;
     openclaw)
-      echo 'openclaw=restart OpenClaw gateway, then use the vim4-hardware-control agent'
+      echo 'openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent'
       ;;
   esac
 done

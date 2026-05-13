@@ -115,24 +115,45 @@ if [ "$TOOL" != "all" ] && ! is_supported_tool "$TOOL"; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_ROOT="$REPO_ROOT/codex"
+SOURCE_ROOT="$REPO_ROOT/skills"
 INTEGRATIONS_ROOT="$REPO_ROOT/integrations"
 
 test -d "$SOURCE_ROOT" || { echo "missing source root: $SOURCE_ROOT" >&2; exit 1; }
 
 collect_skill_dirs() {
   local dir
+  local skill_file
+  local found="no"
+
   if [ "$SKILL" = "all" ]; then
-    for dir in "$SOURCE_ROOT"/*; do
-      [ -d "$dir" ] || continue
-      [ -f "$dir/SKILL.md" ] || continue
+    while IFS= read -r skill_file; do
+      [ -n "$skill_file" ] || continue
+      dirname "$skill_file"
+    done <<EOF
+$(find "$SOURCE_ROOT" -type f -name SKILL.md | sort)
+EOF
+    return 0
+  fi
+
+  if [ -f "$SOURCE_ROOT/$SKILL/SKILL.md" ]; then
+    printf '%s\n' "$SOURCE_ROOT/$SKILL"
+    return 0
+  fi
+
+  while IFS= read -r skill_file; do
+    [ -n "$skill_file" ] || continue
+    dir="$(dirname "$skill_file")"
+    if [ "$(basename "$dir")" = "$SKILL" ] || [ "$(frontmatter_value name "$skill_file")" = "$SKILL" ]; then
       printf '%s\n' "$dir"
-    done
-  else
-    dir="$SOURCE_ROOT/$SKILL"
-    [ -d "$dir" ] || { echo "missing skill directory: $dir" >&2; return 1; }
-    [ -f "$dir/SKILL.md" ] || { echo "missing skill file: $dir/SKILL.md" >&2; return 1; }
-    printf '%s\n' "$dir"
+      found="yes"
+    fi
+  done <<EOF
+$(find "$SOURCE_ROOT" -type f -name SKILL.md | sort)
+EOF
+
+  if [ "$found" = "no" ]; then
+    echo "missing skill: $SKILL" >&2
+    return 1
   fi
 }
 

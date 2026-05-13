@@ -1,5 +1,5 @@
 ---
-name: vim4-hardware-control
+name: khadas-vim4-hardware-control
 description: minimal hardware control helper for Khadas VIM4 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED, UART, or fan control on VIM4. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_raw, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking the matching /dev/i2c-* node exists, SPI0 uses /dev/spidev1.0 after enabling the spi0 overlay, and UART_E uses /dev/ttyS4 after enabling the uart_e overlay.
 ---
 

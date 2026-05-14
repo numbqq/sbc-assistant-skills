@@ -162,6 +162,34 @@ class HardwarePanelDispatchTest(unittest.TestCase):
         self.assertIn("MEM 46%", text)
         self.assertLessEqual(len(text.splitlines()), 4)
 
+    def test_render_oled_status_reports_disabled_state(self):
+        text = vim4_hw_panel.render_oled_status(enabled=False, bus=5, addr=0x3C)
+
+        self.assertIn("OLED disabled", text)
+        self.assertIn("--oled --i2c-bus 5 --oled-addr 0x3c", text)
+
+    def test_render_oled_status_reports_update_result_when_enabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            text = vim4_hw_panel.render_oled_status(
+                enabled=True,
+                bus=5,
+                addr=0x3C,
+                dev_root=Path(tmp),
+            )
+
+        self.assertIn("OLED update", text)
+        self.assertIn("missing", text)
+        self.assertIn("i2c-5", text)
+
+    def test_render_page_oled_selection_runs_check_even_without_startup_oled(self):
+        args = vim4_hw_panel.build_parser().parse_args([])
+        with mock.patch.object(vim4_hw_panel, "update_oled_status", return_value="missing /dev/i2c-5") as update:
+            text = vim4_hw_panel.render_page("7", args)
+
+        self.assertIn("OLED update: missing /dev/i2c-5", text)
+        update.assert_called_once()
+        self.assertEqual(update.call_args.args[:3], (True, 5, 0x3C))
+
 
 class HardwarePanelOptionalIoTest(unittest.TestCase):
     def test_parse_input_event_returns_press_action(self):

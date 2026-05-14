@@ -537,11 +537,28 @@ def update_oled_status(
     return "OLED status updated"
 
 
-def render_oled_status() -> str:
-    return "OLED Status Display\n\nUse --oled --i2c-bus 5 --oled-addr 0x3c to enable SSD1306 updates."
+def render_oled_status(
+    enabled: bool = False,
+    bus: int = 5,
+    addr: int = 0x3C,
+    dev_root: Path = I2C_DEV_ROOT,
+) -> str:
+    lines = ["OLED Status Display", ""]
+    if not enabled:
+        lines.append("OLED disabled")
+        lines.append(f"Use --oled --i2c-bus {bus} --oled-addr 0x{addr:x} to enable SSD1306 updates.")
+        return "\n".join(lines)
+    result = update_oled_status(True, bus, addr, dev_root=dev_root)
+    lines.append(f"OLED update: {result}")
+    return "\n".join(lines)
 
 
-def render_page(selection: str) -> str:
+def render_page(selection: str, args: argparse.Namespace | None = None) -> str:
+    def oled_page() -> str:
+        if args is None:
+            return render_oled_status()
+        return render_oled_status(True, args.i2c_bus, args.oled_addr)
+
     pages = {
         "1": render_board_status,
         "2": render_adc_monitor,
@@ -549,7 +566,7 @@ def render_page(selection: str) -> str:
         "4": render_fan_control,
         "5": render_gpio_pwm_map,
         "6": render_bus_status,
-        "7": render_oled_status,
+        "7": oled_page,
         "8": render_func_key_status,
     }
     renderer = pages.get(selection)
@@ -613,10 +630,10 @@ def run_interactive(args: argparse.Namespace) -> int:
                 handle_fan_page()
             elif selection in {"1", "2", "5", "6", "7", "8"}:
                 clear_screen()
-                print(render_page(selection))
+                print(render_page(selection, args))
                 prompt_input("\nPress Enter to return...")
             else:
-                print(render_page(selection))
+                print(render_page(selection, args))
                 prompt_input("Press Enter to continue...")
     finally:
         if key_fd is not None:

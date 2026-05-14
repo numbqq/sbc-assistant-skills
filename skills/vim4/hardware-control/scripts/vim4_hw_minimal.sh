@@ -13,6 +13,9 @@ SPI_OVERLAY="spi0"
 UART_HELPER="$SCRIPT_DIR/uart_read_write.py"
 UART_DEVICE="/dev/ttyS4"
 UART_OVERLAY="uart_e"
+KEY_HELPER="$SCRIPT_DIR/key_input.py"
+KEY_DEVICE="/dev/input/event2"
+KEY_NAME="adc_keypad"
 
 usage() {
   cat <<USAGE
@@ -40,6 +43,9 @@ Usage:
   $0 uart send [device] [baud] <text>
   $0 uart receive [device] [baud] [timeout]
   $0 uart loopback [device] [baud] [text]
+  $0 key status
+  $0 key wait [timeout]
+  $0 key listen
 USAGE
 }
 
@@ -235,6 +241,20 @@ warn_uart_node() {
     else
       echo "warning: missing $device" >&2
     fi
+  fi
+}
+
+key_status() {
+  echo "key=FUNC"
+  echo "device=$KEY_DEVICE"
+  echo "expected_name=$KEY_NAME"
+  if [ -e "$KEY_DEVICE" ]; then
+    echo "device_node=present:$KEY_DEVICE"
+  else
+    echo "device_node=missing:$KEY_DEVICE"
+    echo "key_ready=no"
+    echo "note=VIM4 Func key is expected at $KEY_DEVICE as $KEY_NAME"
+    return 1
   fi
 }
 
@@ -521,6 +541,28 @@ case "${1:-}" in
         parse_uart_loopback_args "$@"
         warn_uart_node "$UART_ARG_DEVICE"
         python3 "$UART_HELPER" loopback --device "$UART_ARG_DEVICE" --baud "$UART_ARG_BAUD" --text "$UART_ARG_TEXT"
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  key)
+    case "${2:-}" in
+      status)
+        key_status
+        need_cmd python3
+        test -f "$KEY_HELPER" || { echo "missing key helper: $KEY_HELPER" >&2; exit 1; }
+        python3 "$KEY_HELPER" status
+        ;;
+      wait)
+        need_cmd python3
+        test -f "$KEY_HELPER" || { echo "missing key helper: $KEY_HELPER" >&2; exit 1; }
+        timeout="${3:-10}"
+        python3 "$KEY_HELPER" wait --timeout "$timeout"
+        ;;
+      listen)
+        need_cmd python3
+        test -f "$KEY_HELPER" || { echo "missing key helper: $KEY_HELPER" >&2; exit 1; }
+        python3 "$KEY_HELPER" listen
         ;;
       *) usage; exit 1 ;;
     esac

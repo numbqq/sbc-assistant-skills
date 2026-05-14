@@ -43,6 +43,7 @@ skills/
             ├── adc_read.py
             ├── fan_control_demo.sh
             ├── i2c_read_write.py
+            ├── key_input.py
             ├── oled_ssd1306_demo.py
             ├── oled_sys_monitor.py
             ├── spi_transfer.py
@@ -111,6 +112,7 @@ Coverage:
 - SPI0 via Linux `/dev/spidev1.0`
 - SSD1306 OLED over I2C
 - UART_E via Linux `/dev/ttyS4`
+- Func key via Linux input device `/dev/input/event2` named `adc_keypad`
 
 The skill keeps examples minimal and favors read-only discovery checks before
 commands that write hardware state.

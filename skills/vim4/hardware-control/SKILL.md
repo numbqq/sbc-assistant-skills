@@ -1,6 +1,6 @@
 ---
 name: khadas-vim4-hardware-control
-description: minimal hardware control helper for Khadas VIM4 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED, UART, or fan control on VIM4. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_raw, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking the matching /dev/i2c-* node exists, SPI0 uses /dev/spidev1.0 after enabling the spi0 overlay, and UART_E uses /dev/ttyS4 after enabling the uart_e overlay.
+description: minimal hardware control helper for Khadas VIM4 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED, UART, Func key, or fan control on VIM4. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_raw, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking the matching /dev/i2c-* node exists, SPI0 uses /dev/spidev1.0 after enabling the spi0 overlay, UART_E uses /dev/ttyS4 after enabling the uart_e overlay, and the board Func key uses /dev/input/event2 with device name adc_keypad.
 ---
 
 # VIM4 Hardware Control
@@ -19,6 +19,7 @@ Supported only:
 - SPI0 via Linux `/dev/spidev1.0` and Python `SPI_IOC_MESSAGE` ioctl
 - OLED over I2C via the bundled SSD1306 helper
 - UART_E via Linux `/dev/ttyS4` and Python `termios`
+- board Func key via Linux input device `/dev/input/event2` named `adc_keypad`
 
 For VIM4 40-pin I2C, SPI, or UART, check whether the matching device node exists. Do not treat overlay file contents as runtime status because `fdt_overlays` changes require reboot to take effect.
 
@@ -38,6 +39,7 @@ For VIM4 40-pin I2C, SPI, or UART, check whether the matching device node exists
 - SPI0 shares PIN25/PIN26 with I2C0; do not enable or use both functions on those pins at the same time
 - Fan is controlled by MCU through `/usr/local/bin/fan.sh`
 - LED sysfs node is `/sys/class/leds/pwmled`
+- Board Func key is read-only through Linux input device `/dev/input/event2`, which should report device name `adc_keypad`
 
 ## Safety rules
 
@@ -54,10 +56,11 @@ Before generating commands that write hardware state:
 10. For SPI writes/transfers, confirm SPI mode, speed, bits per word, chip-select wiring, and voltage level first when possible.
 11. For UART_E, check `/dev/ttyS4` before serial reads/writes.
 12. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
+13. For the board Func key, read only `/dev/input/event2`; do not treat it as a GPIO, PWM, or raw ADC input.
 
 ## Workflow
 
-1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, or UART.
+1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, or Func key.
 2. Generate the smallest working Bash or Python script.
 3. Include a read/check command when possible.
 4. Include short usage examples.
@@ -267,6 +270,38 @@ scripts/uart_read_write.py loopback --device /dev/ttyS4 --baud 115200 --text "he
 ```
 
 Keep device path, baud rate, timeout, and payload configurable. Prefer the bundled stdlib `termios` helper; use `pyserial` only if the user explicitly requests it.
+
+## Func key through Linux input
+
+The VIM4 board Func key is exposed by Linux input as:
+
+```bash
+/dev/input/event2
+```
+
+The expected device name is:
+
+```text
+adc_keypad
+```
+
+Useful checks:
+
+```bash
+scripts/vim4_hw_minimal.sh key status
+scripts/vim4_hw_minimal.sh key wait 10
+scripts/vim4_hw_minimal.sh key listen
+```
+
+Bundled helper:
+
+```bash
+scripts/key_input.py status
+scripts/key_input.py wait --timeout 10
+scripts/key_input.py listen
+```
+
+Only support the board Func key for this skill. Keep examples read-only, use `/dev/input/event2`, and report press, release, or repeat events from EV_KEY input events. If reading the device returns permission denied, suggest `sudo` or membership in the Linux `input` group.
 
 ## Output style
 

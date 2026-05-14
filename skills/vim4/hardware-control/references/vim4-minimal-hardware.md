@@ -9,6 +9,7 @@
 - I2C: Linux `/dev/i2c-*` plus Python `I2C_SLAVE` ioctl helpers
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
 - UART: Linux `/dev/ttyS4` plus Python `termios` helper
+- Func key: Linux input `/dev/input/event2` with device name `adc_keypad`
 - LED: `/sys/class/leds/pwmled`
 - FAN: `/usr/local/bin/fan.sh`
 
@@ -271,3 +272,31 @@ sudo python3 scripts/uart_read_write.py loopback --device /dev/ttyS4 --baud 1152
 ```
 
 Use 3.3V TTL UART wiring. Cross-connect TX/RX between devices and connect GND.
+
+## Func key commands
+
+The board Func key is exposed as a Linux input event device:
+
+```bash
+/dev/input/event2
+```
+
+The expected device name is `adc_keypad`. Treat this as read-only input, not as GPIO, PWM, or a raw ADC channel.
+
+Useful checks:
+
+```bash
+scripts/vim4_hw_minimal.sh key status
+scripts/vim4_hw_minimal.sh key wait 10
+scripts/vim4_hw_minimal.sh key listen
+```
+
+For direct Python access, use the bundled helper. It uses only the Python standard library:
+
+```bash
+python3 scripts/key_input.py status
+python3 scripts/key_input.py wait --timeout 10
+python3 scripts/key_input.py listen
+```
+
+If reading `/dev/input/event2` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.

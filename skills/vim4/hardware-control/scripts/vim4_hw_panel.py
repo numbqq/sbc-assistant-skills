@@ -203,7 +203,12 @@ This panel does not perform arbitrary GPIO or PWM writes.
 def render_bus_status(dev_root: Path = I2C_DEV_ROOT) -> str:
     return render_status_items(
         "I2C/SPI/UART Status",
-        [i2c_status(5, dev_root), i2c_status(0, dev_root), spi_status(), uart_status()],
+        [
+            i2c_status(5, dev_root),
+            i2c_status(0, dev_root),
+            spi_status(dev_root / SPI_DEVICE.name),
+            uart_status(dev_root / UART_DEVICE.name),
+        ],
     )
 
 

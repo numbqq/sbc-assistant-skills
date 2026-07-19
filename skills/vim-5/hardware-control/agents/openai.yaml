@@ -1,0 +1,4 @@
+interface:
+  display_name: "VIM 5 Hardware Control"
+  short_description: "Minimal Khadas VIM 5 LED, ADC, GPIO, PWM, I2C/OLED, SPI1, UART, Func key, and fan control helper."
+  default_prompt: "Use $khadas-vim-5-hardware-control to write a minimal VIM 5 hardware control script. Check /dev/i2c-3, /dev/i2c-6, /dev/spidev1.0, /dev/ttyS4, or /dev/input/event3 before I2C/SPI/UART/Func key access."

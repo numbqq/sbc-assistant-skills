@@ -32,24 +32,24 @@ Current example:
 
 ```text
 skills/
-└── vim4/
+├── vim4/
+│   └── hardware-control/
+│       ├── SKILL.md
+│       ├── agents/
+│       │   └── openai.yaml
+│       ├── references/
+│       │   └── vim4-minimal-hardware.md
+│       └── scripts/
+│           └── vim4_hw_minimal.sh
+└── vim-5/
     └── hardware-control/
         ├── SKILL.md
         ├── agents/
         │   └── openai.yaml
         ├── references/
-        │   └── vim4-minimal-hardware.md
+        │   └── vim-5-minimal-hardware.md
         └── scripts/
-            ├── adc_read.py
-            ├── fan_control_demo.sh
-            ├── i2c_read_write.py
-            ├── key_input.py
-            ├── oled_ssd1306_demo.py
-            ├── oled_sys_monitor.py
-            ├── spi_transfer.py
-            ├── uart_comm.py
-            ├── uart_read_write.py
-            └── vim4_hw_minimal.sh
+            └── vim-5_hw_minimal.sh
 ```
 
 ## Skill Naming
@@ -70,6 +70,7 @@ Examples:
 
 ```text
 skills/vim4/hardware-control/
+skills/vim-5/hardware-control/
 skills/vim4/npu/
 skills/edge2/hardware-control/
 skills/edge2/npu/
@@ -116,6 +117,35 @@ Coverage:
 
 The skill keeps examples minimal and favors read-only discovery checks before
 commands that write hardware state.
+
+### Khadas VIM 5 Hardware Control
+
+Skill name:
+
+```text
+khadas-vim-5-hardware-control
+```
+
+Location:
+
+```text
+skills/vim-5/hardware-control/
+```
+
+Coverage:
+
+- LED via `/sys/class/leds/pwmled`
+- Fan via `/usr/local/bin/fan.sh`
+- ADC0/ADC1 via Linux IIO input nodes or `adc single`
+- GPIO via wiringpi
+- PWM on PIN35 after the `pwm_j` overlay is active
+- I2C3 on PIN22/PIN23 after `i2c_d`, and I2C6 on PIN25/PIN26 after `i2c_g`
+- SPI1 on PIN25/PIN26/PIN36/PIN37 after `spi1`, using `/dev/spidev1.0`
+- SSD1306 OLED over I2C
+- UART on PIN15/PIN16 after `uart_ao_e`, using `/dev/ttyS4`
+- SPDIF on PIN13 after `spdifout`
+- IR on PIN39 after `ir`
+- Func key via Linux input device `/dev/input/event3` named `adc_keypad`
 
 ## Installation
 
@@ -170,6 +200,8 @@ Install a single skill:
 ```bash
 ./scripts/install.sh --tool codex --skill khadas-vim4-hardware-control
 ./scripts/install.sh --tool codex --skill skills/vim4/hardware-control
+./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
+./scripts/install.sh --tool codex --skill skills/vim-5/hardware-control
 ```
 
 Preview source and target paths without copying files:
@@ -214,14 +246,18 @@ directories:
 
 After installation, restart the target AI tool if it is already running.
 
-Activation examples for the current VIM4 skill:
+Activation examples:
 
 ```text
 codex=$khadas-vim4-hardware-control
+codex=$khadas-vim-5-hardware-control
 claude-code=restart Claude Code, then use /khadas-vim4-hardware-control
+claude-code=restart Claude Code, then use /khadas-vim-5-hardware-control
 gemini-cli=restart Gemini CLI, then run /skills reload and /skills list
 hermes=restart Hermes, then use the khadas-vim4-hardware-control skill
+hermes=restart Hermes, then use the khadas-vim-5-hardware-control skill
 openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent
+openclaw=restart OpenClaw gateway, then use the khadas-vim-5-hardware-control agent
 ```
 
 ## Adding Skills
@@ -289,6 +325,36 @@ scripts/vim4_hw_minimal.sh adc read 3
 python3 scripts/adc_read.py status
 ```
 
+## VIM 5 Quick Usage
+
+From the VIM 5 hardware-control skill directory:
+
+```bash
+cd skills/vim-5/hardware-control
+scripts/vim-5_hw_minimal.sh gpio map
+scripts/vim-5_hw_minimal.sh adc status
+scripts/vim-5_hw_minimal.sh i2c status 3
+scripts/vim-5_hw_minimal.sh i2c status 6
+scripts/vim-5_hw_minimal.sh spi status
+scripts/vim-5_hw_minimal.sh uart status
+scripts/vim-5_hw_minimal.sh pwm status
+```
+
+Example helper commands:
+
+```bash
+python3 scripts/adc_read.py read 0
+python3 scripts/adc_read.py watch 1 --interval 1 --count 5
+cat /sys/bus/iio/devices/iio:device0/in_voltage0_input
+cat /sys/bus/iio/devices/iio:device0/in_voltage3_input
+adc single 0 0
+adc single 0 3
+sudo python3 scripts/i2c_read_write.py read --bus 3 --addr 0x40 --reg 0x00
+sudo python3 scripts/oled_ssd1306_demo.py --bus 3 --addr 0x3c
+sudo python3 scripts/spi_transfer.py transfer --device /dev/spidev1.0 --data 0x9f 0x00 0x00 0x00
+sudo python3 scripts/uart_read_write.py send --device /dev/ttyS4 --baud 115200 --text "hello"
+```
+
 ## Hardware Notes
 
 - Confirm live board state before writing to GPIO, PWM, I2C, UART, LED, fan,
@@ -315,10 +381,25 @@ Current VIM4 notes:
   shares PIN25/PIN26 with I2C0.
 - UART wiring should use 3.3V TTL levels, cross-connected TX/RX, and common GND.
 
+Current VIM 5 notes:
+
+- PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`
+  or `adc single 0 0`; PIN12 is ADC1 at
+  `/sys/bus/iio/devices/iio:device0/in_voltage3_input` or `adc single 0 3`.
+- Check `/dev/i2c-3` for PIN22/PIN23 after `i2c_d`; check `/dev/i2c-6`
+  for PIN25/PIN26 after `i2c_g`.
+- SPI1 uses PIN25/PIN26/PIN36/PIN37 after `spi1`, exposes
+  `/dev/spidev1.0`, and shares PIN25/PIN26 with I2C6.
+- UART uses PIN15/PIN16 after `uart_ao_e` and exposes `/dev/ttyS4`.
+- PIN13 SPDIF needs `spdifout`, PIN35 PWM needs `pwm_j`, and PIN39 IR needs
+  `ir`; all are GPIO by default.
+- Func key uses Linux input device `/dev/input/event3` named `adc_keypad`.
+
 ## Reference
 
-Detailed VIM4 notes:
+Detailed VIM4 and VIM 5 notes:
 
 ```text
 skills/vim4/hardware-control/references/vim4-minimal-hardware.md
+skills/vim-5/hardware-control/references/vim-5-minimal-hardware.md
 ```

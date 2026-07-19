@@ -159,6 +159,15 @@ EOF
     return 0
   fi
 
+  if [ -f "$REPO_ROOT/$SKILL/SKILL.md" ]; then
+    case "$(cd "$REPO_ROOT/$SKILL" && pwd)" in
+      "$SOURCE_ROOT"/*)
+        printf '%s\n' "$REPO_ROOT/$SKILL"
+        return 0
+        ;;
+    esac
+  fi
+
   if [ -f "$SOURCE_ROOT/$SKILL/SKILL.md" ]; then
     printf '%s\n' "$SOURCE_ROOT/$SKILL"
     return 0

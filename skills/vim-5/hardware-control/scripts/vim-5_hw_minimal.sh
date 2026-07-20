@@ -2,12 +2,15 @@
 set -euo pipefail
 
 LED_PATH="/sys/class/leds/pwmled"
+EXT_GREEN_LED_PATH="/sys/class/leds/green_led"
 FAN_SCRIPT="/usr/local/bin/fan.sh"
 IIO_DEVICE="/sys/bus/iio/devices/iio:device0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 I2C_HELPER="$SCRIPT_DIR/i2c_read_write.py"
 OLED_HELPER="$SCRIPT_DIR/oled_ssd1306_demo.py"
 SPI_HELPER="$SCRIPT_DIR/spi_transfer.py"
+SPI_LCD_HELPER="$SCRIPT_DIR/spi_lcd_st7735.py"
 SPI_DEVICE="/dev/spidev1.0"
 SPI_OVERLAY="spi1"
 UART_HELPER="$SCRIPT_DIR/uart_read_write.py"
@@ -18,6 +21,10 @@ KEY_DEVICE="/dev/input/event3"
 KEY_NAME="adc_keypad"
 OVERLAY_CONFIG="/boot/dtb/amlogic/kvim-5.dtb.overlay.env"
 OVERLAY_DIR="/boot/dtb/amlogic/kvim-5.dtb.overlays"
+EXT_BOARD_CODEC_OVERLAY="ext-board-codec"
+EXT_BOARD_SPI_LCD_OVERLAY="spi1-lcd"
+ANALOG_MIC_DEVICE="hw:0,1"
+MIC_ARRAY_DEVICE="hw:0,3"
 
 usage() {
   cat <<USAGE
@@ -50,11 +57,94 @@ Usage:
   $0 key status
   $0 key wait [timeout]
   $0 key listen
+  $0 ext-board status
+  $0 ext-board green-led status
+  $0 ext-board green-led brightness <value>
+  $0 ext-board analog-mic status
+  $0 ext-board analog-mic configure
+  $0 ext-board analog-mic record [seconds] [output.wav]
+  $0 ext-board mic-array status
+  $0 ext-board mic-array record [seconds] [output.wav]
+  $0 ext-board spi-lcd status
+  $0 ext-board spi-lcd test
+  $0 ext-board spi-lcd clear [color]
+  $0 ext-board spi-lcd text <line> [line...]
 USAGE
 }
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }
+}
+
+print_command_status() {
+  cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    echo "command_${cmd}=present:$(command -v "$cmd")"
+  else
+    echo "command_${cmd}=missing"
+  fi
+}
+
+repo_relative_path() {
+  path="$1"
+  case "$path" in
+    "$REPO_ROOT"/*) echo "${path#"$REPO_ROOT"/}" ;;
+    *) echo "$path" ;;
+  esac
+}
+
+validate_positive_seconds() {
+  seconds="$1"
+  case "$seconds" in
+    ''|*[!0-9]*) echo "duration seconds must be a positive integer" >&2; exit 1 ;;
+  esac
+  if [ "$seconds" -le 0 ]; then
+    echo "duration seconds must be a positive integer" >&2
+    exit 1
+  fi
+}
+
+led_status_for_path() {
+  label="$1"
+  path="$2"
+  echo "led=$label"
+  echo "path=$path"
+  if [ ! -d "$path" ]; then
+    echo "led_ready=no"
+    echo "note=missing LED path: $path"
+    return 0
+  fi
+  echo "led_ready=yes"
+  if [ -r "$path/brightness" ]; then
+    echo -n "brightness="
+    cat "$path/brightness"
+  else
+    echo "brightness=unreadable"
+  fi
+  if [ -r "$path/max_brightness" ]; then
+    echo -n "max_brightness="
+    cat "$path/max_brightness"
+  else
+    echo "max_brightness=unreadable"
+  fi
+}
+
+set_led_brightness_for_path() {
+  path="$1"
+  value="$2"
+  test -d "$path" || { echo "missing LED path: $path" >&2; exit 1; }
+  case "$value" in
+    ''|*[!0-9]*) echo "brightness must be a non-negative integer" >&2; exit 1 ;;
+  esac
+  max_brightness="$(cat "$path/max_brightness")"
+  case "$max_brightness" in
+    ''|*[!0-9]*) echo "invalid max_brightness: $max_brightness" >&2; exit 1 ;;
+  esac
+  if [ "$value" -gt "$max_brightness" ]; then
+    echo "brightness must be 0..$max_brightness" >&2
+    exit 1
+  fi
+  echo "$value" | sudo tee "$path/brightness" >/dev/null
 }
 
 adc_iio_channel_for_channel() {
@@ -298,6 +388,83 @@ key_status() {
   fi
 }
 
+ext_board_analog_mic_status() {
+  echo "analog_mic=extension_board_codec"
+  echo "required_overlay=$EXT_BOARD_CODEC_OVERLAY"
+  echo "overlay_config=$OVERLAY_CONFIG"
+  echo "overlay_dir=$OVERLAY_DIR"
+  echo "capture_device=$ANALOG_MIC_DEVICE"
+  echo "configure_command=amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'"
+  echo "record_command=arecord -D hw:0,1 -f cd -c 2 -d 10 test.wav"
+  echo "pin_conflict=ext-board-codec shares pins with i2s and spi; avoid conflicting overlays at the same time"
+  print_command_status amixer
+  print_command_status arecord
+}
+
+ext_board_mic_array_status() {
+  echo "mic_array=onboard_pdm_array"
+  echo "capture_device=$MIC_ARRAY_DEVICE"
+  echo "record_command=arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6 -d 10 pdm_6ch.wav"
+  print_command_status arecord
+}
+
+ext_board_spi_lcd_status() {
+  echo "spi_lcd=three_wire_spi_oled"
+  echo "required_overlay=$EXT_BOARD_SPI_LCD_OVERLAY"
+  echo "overlay_config=$OVERLAY_CONFIG"
+  echo "overlay_dir=$OVERLAY_DIR"
+  echo "device_node=$SPI_DEVICE"
+  echo "control_script=$(repo_relative_path "$SPI_LCD_HELPER")"
+  echo "apt_dependencies=python3-spidev gpiod python3-libgpiod"
+  echo "pin_conflict=spi1-lcd uses SPI pins; avoid conflicting ext-board-codec, i2s, or spi overlays at the same time"
+  if [ -e "$SPI_DEVICE" ]; then
+    echo "device_node_ready=yes"
+  else
+    echo "device_node_ready=no"
+    echo "note=missing $SPI_DEVICE; enable $EXT_BOARD_SPI_LCD_OVERLAY in fdt_overlays and reboot"
+  fi
+  if [ -f "$SPI_LCD_HELPER" ]; then
+    echo "control_script_ready=yes"
+    need_cmd python3
+    python3 "$SPI_LCD_HELPER" status
+  else
+    echo "control_script_ready=no"
+  fi
+}
+
+ext_board_status() {
+  echo "expansion_board=VIM 5 extension board"
+  echo "overlay_config=$OVERLAY_CONFIG"
+  echo "overlay_dir=$OVERLAY_DIR"
+  led_status_for_path "green_led" "$EXT_GREEN_LED_PATH"
+  ext_board_analog_mic_status
+  ext_board_mic_array_status
+  ext_board_spi_lcd_status
+}
+
+ext_board_analog_mic_configure() {
+  need_cmd amixer
+  echo "note=$EXT_BOARD_CODEC_OVERLAY must be active after reboot before analog MIC capture is available" >&2
+  amixer -c 0 cset "name=TDMIN_B source select" "tdmin_b"
+}
+
+ext_board_analog_mic_record() {
+  seconds="${1:-10}"
+  output="${2:-test.wav}"
+  validate_positive_seconds "$seconds"
+  need_cmd arecord
+  echo "note=$EXT_BOARD_CODEC_OVERLAY must be active after reboot before analog MIC capture is available" >&2
+  arecord -D "$ANALOG_MIC_DEVICE" -f cd -c 2 -d "$seconds" "$output"
+}
+
+ext_board_mic_array_record() {
+  seconds="${1:-10}"
+  output="${2:-pdm_6ch.wav}"
+  validate_positive_seconds "$seconds"
+  need_cmd arecord
+  arecord -D "$MIC_ARRAY_DEVICE" -r 48000 -f S16_LE -c 6 -d "$seconds" "$output"
+}
+
 parse_uart_send_args() {
   case "$#" in
     1)
@@ -400,26 +567,11 @@ case "${1:-}" in
   led)
     case "${2:-}" in
       status)
-        test -d "$LED_PATH" || { echo "missing LED path: $LED_PATH" >&2; exit 1; }
-        echo "path=$LED_PATH"
-        echo -n "brightness="; cat "$LED_PATH/brightness"
-        echo -n "max_brightness="; cat "$LED_PATH/max_brightness"
+        led_status_for_path "pwmled" "$LED_PATH"
         ;;
       brightness)
         value="${3:?brightness value required}"
-        test -d "$LED_PATH" || { echo "missing LED path: $LED_PATH" >&2; exit 1; }
-        case "$value" in
-          ''|*[!0-9]*) echo "brightness must be a non-negative integer" >&2; exit 1 ;;
-        esac
-        max_brightness="$(cat "$LED_PATH/max_brightness")"
-        case "$max_brightness" in
-          ''|*[!0-9]*) echo "invalid max_brightness: $max_brightness" >&2; exit 1 ;;
-        esac
-        if [ "$value" -gt "$max_brightness" ]; then
-          echo "brightness must be 0..$max_brightness" >&2
-          exit 1
-        fi
-        echo "$value" | sudo tee "$LED_PATH/brightness" >/dev/null
+        set_led_brightness_for_path "$LED_PATH" "$value"
         ;;
       *) usage; exit 1 ;;
     esac
@@ -614,6 +766,83 @@ case "${1:-}" in
         need_cmd python3
         test -f "$KEY_HELPER" || { echo "missing key helper: $KEY_HELPER" >&2; exit 1; }
         python3 "$KEY_HELPER" listen
+        ;;
+      *) usage; exit 1 ;;
+    esac
+    ;;
+  ext-board)
+    case "${2:-}" in
+      status)
+        ext_board_status
+        ;;
+      green-led|led)
+        case "${3:-}" in
+          status)
+            led_status_for_path "green_led" "$EXT_GREEN_LED_PATH"
+            ;;
+          brightness)
+            value="${4:?brightness value required}"
+            set_led_brightness_for_path "$EXT_GREEN_LED_PATH" "$value"
+            ;;
+          *) usage; exit 1 ;;
+        esac
+        ;;
+      analog-mic)
+        case "${3:-}" in
+          status)
+            ext_board_analog_mic_status
+            ;;
+          configure)
+            ext_board_analog_mic_configure
+            ;;
+          record)
+            ext_board_analog_mic_record "${4:-10}" "${5:-test.wav}"
+            ;;
+          *) usage; exit 1 ;;
+        esac
+        ;;
+      mic-array)
+        case "${3:-}" in
+          status)
+            ext_board_mic_array_status
+            ;;
+          record)
+            ext_board_mic_array_record "${4:-10}" "${5:-pdm_6ch.wav}"
+            ;;
+          *) usage; exit 1 ;;
+        esac
+        ;;
+      spi-lcd|oled)
+        case "${3:-}" in
+          status)
+            ext_board_spi_lcd_status
+            ;;
+          test)
+            need_cmd python3
+            test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
+            python3 "$SPI_LCD_HELPER" test
+            ;;
+          clear)
+            need_cmd python3
+            test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
+            python3 "$SPI_LCD_HELPER" clear --color "${4:-black}"
+            ;;
+          text)
+            need_cmd python3
+            test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
+            shift 3
+            if [ "$#" -eq 0 ]; then
+              echo "at least one text line is required" >&2
+              exit 1
+            fi
+            lcd_text_args=()
+            for line in "$@"; do
+              lcd_text_args+=(--line "$line")
+            done
+            python3 "$SPI_LCD_HELPER" text "${lcd_text_args[@]}"
+            ;;
+          *) usage; exit 1 ;;
+        esac
         ;;
       *) usage; exit 1 ;;
     esac

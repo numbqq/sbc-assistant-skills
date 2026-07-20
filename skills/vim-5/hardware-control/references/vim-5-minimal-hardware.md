@@ -12,6 +12,10 @@
 - Func key: Linux input `/dev/input/event3` with device name `adc_keypad`
 - LED: `/sys/class/leds/pwmled`
 - FAN: `/usr/local/bin/fan.sh`
+- Expansion-board green LED: `/sys/class/leds/green_led`
+- Expansion-board analog MIC: `ext-board-codec` overlay, ALSA route setup, capture device `hw:0,1`
+- Mic Array: ALSA capture device `hw:0,3`
+- Expansion-board three-wire SPI OLED/LCD: `spi1-lcd` overlay, `/dev/spidev1.0`, bundled ST7735 helper `scripts/spi_lcd_st7735.py`
 
 ## Fan commands
 
@@ -40,6 +44,20 @@ echo 1 | sudo tee $LED/brightness
 ```
 
 For unknown brightness range, read `max_brightness` first.
+
+Expansion-board green LED:
+
+```bash
+GREEN_LED=/sys/class/leds/green_led
+cat $GREEN_LED/max_brightness
+cat $GREEN_LED/brightness
+echo 1 | sudo tee $GREEN_LED/brightness
+scripts/vim-5_hw_minimal.sh ext-board green-led status
+scripts/vim-5_hw_minimal.sh ext-board green-led brightness 1
+python3 scripts/led_blink.py --led-path /sys/class/leds/green_led --delay 0.1
+```
+
+Use `/sys/class/leds/pwmled` for the VIM 5 board LED and `/sys/class/leds/green_led` for the expansion-board green LED.
 
 ## GPIO wiringpi commands
 
@@ -324,3 +342,120 @@ python3 scripts/key_input.py listen
 ```
 
 If reading `/dev/input/event3` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.
+
+## Expansion-board commands
+
+The VIM 5 expansion board provides a green LED, analog MIC, Mic Array, and a three-wire SPI OLED/LCD. The overlay config file is:
+
+```bash
+/boot/dtb/amlogic/kvim-5.dtb.overlay.env
+```
+
+Overlay files live under:
+
+```bash
+/boot/dtb/amlogic/kvim-5.dtb.overlays
+```
+
+### Expansion-board status
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board status
+scripts/vim-5_hw_minimal.sh ext-board analog-mic status
+scripts/vim-5_hw_minimal.sh ext-board mic-array status
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd status
+```
+
+### Analog MIC
+
+Requirements:
+
+- Expansion board connected
+- `fdt_overlays=ext-board-codec`
+- Reboot after changing `fdt_overlays`
+
+The analog MIC overlay shares pins with I2S and SPI functions. Do not enable or use conflicting overlays at the same time unless the mux configuration has been confirmed.
+
+Configure the route:
+
+```bash
+amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'
+scripts/vim-5_hw_minimal.sh ext-board analog-mic configure
+```
+
+Record 10 seconds:
+
+```bash
+arecord -D hw:0,1 -f cd -c 2 -d 10 test.wav
+scripts/vim-5_hw_minimal.sh ext-board analog-mic record 10 test.wav
+```
+
+### Mic Array
+
+Record 10 seconds from the 6-channel PDM Mic Array:
+
+```bash
+arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6 -d 10 pdm_6ch.wav
+scripts/vim-5_hw_minimal.sh ext-board mic-array record 10 pdm_6ch.wav
+```
+
+### Three-wire SPI OLED/LCD
+
+Requirements:
+
+- Expansion board connected
+- `fdt_overlays=spi1-lcd`
+- Reboot after changing `fdt_overlays`
+- Runtime node `/dev/spidev1.0`
+- Dependencies: `python3-spidev`, `gpiod`, and optionally `python3-libgpiod`
+
+Install dependencies:
+
+```bash
+sudo apt update
+sudo apt install python3-spidev gpiod python3-libgpiod
+```
+
+`python3-libgpiod` is optional when `gpioset` from package `gpiod` is available. The helper accepts either named lines or explicit chip/line values:
+
+```bash
+--reset-line GPIOD_5 --dc-line GPIOM_1
+--reset-line gpiochip10:5 --dc-line gpiochip3:1
+```
+
+Check readiness:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd status
+ls -l /dev/spidev1.0
+```
+
+Draw the default VIM 5 test frame:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd test
+python3 scripts/spi_lcd_st7735.py test
+```
+
+Clear the panel:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd clear black
+python3 scripts/spi_lcd_st7735.py clear --color black
+```
+
+Draw text:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd text "Khadas" "VIM 5"
+python3 scripts/spi_lcd_st7735.py text --line "Khadas" --line "VIM 5"
+```
+
+If GPIO name resolution does not work, pass explicit lines directly to the Python helper:
+
+```bash
+python3 scripts/spi_lcd_st7735.py test \
+  --spi /dev/spidev1.0 \
+  --reset-line gpiochip10:5 \
+  --dc-line gpiochip3:1
+```

@@ -1,6 +1,6 @@
 ---
 name: khadas-vim-5-hardware-control
-description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED, UART, Func key, or fan control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, LED control uses /sys/class/leds/pwmled, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or adc single, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 overlay, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, and the board Func key uses /dev/input/event3 with device name adc_keypad.
+description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED/LCD, UART, Func key, fan, expansion-board green LED, analog MIC, Mic Array, or three-wire SPI display control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, board LED control uses /sys/class/leds/pwmled, expansion-board green LED uses /sys/class/leds/green_led, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or adc single, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 or spi1-lcd overlay, analog MIC uses ext-board-codec plus ALSA hw:0,1, Mic Array records from hw:0,3, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, and the board Func key uses /dev/input/event3 with device name adc_keypad.
 ---
 
 # VIM 5 Hardware Control
@@ -20,6 +20,10 @@ Supported only:
 - OLED over I2C via the bundled SSD1306 helper
 - UART via Linux `/dev/ttyS4` and Python `termios`
 - board Func key via Linux input device `/dev/input/event3` named `adc_keypad`
+- VIM 5 expansion-board green LED via `/sys/class/leds/green_led`
+- VIM 5 expansion-board analog MIC via `ext-board-codec`, ALSA route setup, and `arecord` on `hw:0,1`
+- VIM 5 Mic Array recording via `arecord` on `hw:0,3`
+- VIM 5 expansion-board three-wire SPI OLED/LCD via `spi1-lcd`, `/dev/spidev1.0`, and the bundled `scripts/spi_lcd_st7735.py` ST7735 helper
 
 For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exists. Do not treat overlay file contents as runtime status because `fdt_overlays` changes require reboot to take effect.
 
@@ -43,6 +47,11 @@ For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exist
 - Fan is controlled by MCU through `/usr/local/bin/fan.sh`
 - LED sysfs node is `/sys/class/leds/pwmled`
 - Board Func key is read-only through Linux input device `/dev/input/event3`, which should report device name `adc_keypad`
+- Expansion-board green LED sysfs node is `/sys/class/leds/green_led`
+- Expansion-board analog MIC requires the board to be attached and `fdt_overlays=ext-board-codec`; configure capture path with `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`, then record from `hw:0,1`
+- Mic Array recording uses `arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6`
+- Expansion-board three-wire SPI OLED/LCD requires `fdt_overlays=spi1-lcd`, uses `/dev/spidev1.0`, and is controlled by bundled helper `scripts/spi_lcd_st7735.py`
+- The `ext-board-codec` overlay shares pins with I2S and SPI functions; do not enable or use conflicting overlays at the same time
 
 ## Safety rules
 
@@ -60,10 +69,13 @@ Before generating commands that write hardware state:
 11. For UART, check `/dev/ttyS4` before serial reads/writes.
 12. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
 13. For the board Func key, read only `/dev/input/event3`; do not treat it as a GPIO, PWM, or raw ADC input.
+14. For expansion-board analog MIC, remind users that the expansion board must be connected and `ext-board-codec` must be active after reboot before ALSA capture from `hw:0,1` works.
+15. For expansion-board SPI OLED/LCD, check `/dev/spidev1.0` before display transfers and use the bundled `scripts/spi_lcd_st7735.py` helper for ST7735-compatible panels.
+16. Avoid combining `ext-board-codec`, `spi1-lcd`, I2S, or SPI overlays that claim the same shared pins unless the user provides a confirmed mux configuration.
 
 ## Workflow
 
-1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, or Func key.
+1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, Func key, or expansion-board device.
 2. Generate the smallest working Bash or Python script.
 3. Include a read/check command when possible.
 4. Include short usage examples.
@@ -87,6 +99,20 @@ cat /sys/class/leds/pwmled/trigger
 ```
 
 For simple on/off or brightness scripts, write to `brightness`. Use `max_brightness` to avoid invalid values.
+
+For the expansion-board green LED, use:
+
+```bash
+/sys/class/leds/green_led
+```
+
+Useful checks and examples:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board green-led status
+scripts/vim-5_hw_minimal.sh ext-board green-led brightness 1
+python3 scripts/led_blink.py --led-path /sys/class/leds/green_led --delay 0.1
+```
 
 ## ADC through Linux IIO sysfs
 
@@ -312,6 +338,48 @@ scripts/key_input.py listen
 ```
 
 Only support the board Func key for this skill. Keep examples read-only, use `/dev/input/event3`, and report press, release, or repeat events from EV_KEY input events. If reading the device returns permission denied, suggest `sudo` or membership in the Linux `input` group.
+
+## VIM 5 expansion board
+
+The VIM 5 expansion board adds a green LED, analog MIC, Mic Array, and a three-wire SPI OLED/LCD.
+
+Green LED:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board green-led status
+scripts/vim-5_hw_minimal.sh ext-board green-led brightness 1
+python3 scripts/led_blink.py --led-path /sys/class/leds/green_led --delay 0.1
+```
+
+Analog MIC:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board analog-mic status
+scripts/vim-5_hw_minimal.sh ext-board analog-mic configure
+scripts/vim-5_hw_minimal.sh ext-board analog-mic record 10 test.wav
+```
+
+Analog MIC requires the expansion board and `fdt_overlays=ext-board-codec`. The exact route setup is `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`; the exact capture command is `arecord -D hw:0,1 -f cd -c 2 -d 10 test.wav`.
+
+Mic Array:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board mic-array status
+scripts/vim-5_hw_minimal.sh ext-board mic-array record 10 pdm_6ch.wav
+```
+
+The exact Mic Array capture command is `arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6 -d 10 pdm_6ch.wav`.
+
+Three-wire SPI OLED/LCD:
+
+```bash
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd status
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd test
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd clear black
+scripts/vim-5_hw_minimal.sh ext-board spi-lcd text "Khadas" "VIM 5"
+```
+
+The display requires `fdt_overlays=spi1-lcd`, uses `/dev/spidev1.0`, and uses the bundled `scripts/spi_lcd_st7735.py` helper. Install dependencies with `sudo apt install python3-spidev gpiod python3-libgpiod`; `python3-libgpiod` is optional when `gpioset` from `gpiod` is available. The `ext-board-codec` overlay shares pins with I2S and SPI functions, so avoid conflicting overlay combinations unless the user has confirmed the mux.
 
 ## Output style
 

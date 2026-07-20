@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Blink the VIM 5 pwmled continuously: on for 100 ms, off for 100 ms."""
+"""Blink a VIM 5 sysfs LED continuously: on for 100 ms, off for 100 ms."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def blink_forever(led_path: Path, delay: float) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Blink VIM 5 /sys/class/leds/pwmled continuously.")
+    parser = argparse.ArgumentParser(description="Blink a VIM 5 sysfs LED continuously.")
     parser.add_argument(
         "--led-path",
         type=Path,

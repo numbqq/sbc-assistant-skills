@@ -6,6 +6,7 @@ import array
 import fcntl
 import os
 import select
+import shutil
 import struct
 import subprocess
 import time
@@ -14,6 +15,7 @@ from pathlib import Path
 
 
 LED_PATH = Path("/sys/class/leds/pwmled")
+EXPANSION_GREEN_LED_PATH = Path("/sys/class/leds/green_led")
 FAN_SCRIPT = Path("/usr/local/bin/fan.sh")
 IIO_DEVICE = Path("/sys/bus/iio/devices/iio:device0")
 I2C_DEV_ROOT = Path("/dev")
@@ -23,6 +25,13 @@ FUNC_KEY_DEVICE = Path("/dev/input/event3")
 FUNC_KEY_NAME = "adc_keypad"
 OVERLAY_CONFIG = "/boot/dtb/amlogic/kvim-5.dtb.overlay.env"
 OVERLAY_DIR = "/boot/dtb/amlogic/kvim-5.dtb.overlays"
+EXT_BOARD_CODEC_OVERLAY = "ext-board-codec"
+SPI_LCD_OVERLAY = "spi1-lcd"
+SPI_LCD_HELPER = Path(__file__).with_name("spi_lcd_st7735.py")
+SPI_LCD_HELPER_REPO_PATH = "skills/vim-5/hardware-control/scripts/spi_lcd_st7735.py"
+SPI_LCD_DEPENDENCIES = "python3-spidev gpiod python3-libgpiod"
+ANALOG_MIC_DEVICE = "hw:0,1"
+MIC_ARRAY_DEVICE = "hw:0,3"
 
 
 @dataclass(frozen=True)
@@ -45,6 +54,13 @@ def path_status(
     if require_exec and not os.access(path, os.X_OK):
         return StatusItem(name, "permission denied", f"permission denied executing {path}")
     return StatusItem(name, "ready", str(path))
+
+
+def command_status(name: str, command: str) -> StatusItem:
+    resolved = shutil.which(command)
+    if resolved is None:
+        return StatusItem(name, "missing", f"missing command: {command}")
+    return StatusItem(name, "ready", resolved)
 
 
 ADC_CHANNELS = {
@@ -154,6 +170,7 @@ def render_status_items(title: str, items: list[StatusItem]) -> str:
 def board_status_items() -> list[StatusItem]:
     return [
         path_status("LED", LED_PATH),
+        path_status("Green LED", EXPANSION_GREEN_LED_PATH),
         path_status("Fan", FAN_SCRIPT, require_exec=True),
         path_status("ADC0", adc_input_path(0), require_read=True),
         path_status("ADC1", adc_input_path(1), require_read=True),
@@ -224,6 +241,49 @@ def render_bus_status(dev_root: Path = I2C_DEV_ROOT) -> str:
             uart_status(dev_root / UART_DEVICE.name),
         ],
     )
+
+
+def spi_lcd_status(
+    device: Path = SPI_DEVICE,
+    helper_path: Path = SPI_LCD_HELPER,
+    helper_label: str = SPI_LCD_HELPER_REPO_PATH,
+) -> StatusItem:
+    helper = f"helper present {helper_label}" if helper_path.exists() else f"helper missing {helper_label}"
+    conflict = "avoid ext-board-codec/I2S/SPI overlay conflicts on shared pins"
+    deps = f"apt install {SPI_LCD_DEPENDENCIES}"
+    if device.exists():
+        return StatusItem(
+            "SPI LCD/OLED",
+            "ready",
+            f"{device}; overlay {SPI_LCD_OVERLAY}; {helper}; {deps}; {conflict}",
+        )
+    return StatusItem(
+        "SPI LCD/OLED",
+        "missing",
+        f"missing {device}; enable {SPI_LCD_OVERLAY} in {OVERLAY_CONFIG}; overlays live in {OVERLAY_DIR}; {helper}; {deps}; {conflict}",
+    )
+
+
+def expansion_board_status_items() -> list[StatusItem]:
+    analog_route = "amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'"
+    analog_record = "arecord -D hw:0,1 -f cd -c 2 -d 10 test.wav"
+    array_record = "arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6 -d 10 pdm_6ch.wav"
+    return [
+        path_status("Green LED", EXPANSION_GREEN_LED_PATH),
+        StatusItem(
+            "Analog MIC",
+            "requires overlay",
+            f"{EXT_BOARD_CODEC_OVERLAY}; device {ANALOG_MIC_DEVICE}; {analog_route}; {analog_record}; shares pins with I2S/SPI",
+        ),
+        command_status("amixer", "amixer"),
+        command_status("arecord", "arecord"),
+        StatusItem("Mic Array", "record", f"device {MIC_ARRAY_DEVICE}; {array_record}"),
+        spi_lcd_status(),
+    ]
+
+
+def render_expansion_board_status() -> str:
+    return render_status_items("Expansion Board Status", expansion_board_status_items())
 
 
 FAN_ACTIONS = {"auto", "off", "low", "mid", "high", "temp", "mode"}
@@ -362,6 +422,7 @@ def render_main_menu() -> str:
 [6] I2C/SPI/UART Status
 [7] OLED Status Display
 [8] Func Key Status
+[9] Expansion Board Status
 [q] Quit
 """
 
@@ -587,6 +648,7 @@ def render_page(selection: str, args: argparse.Namespace | None = None) -> str:
         "6": render_bus_status,
         "7": oled_page,
         "8": render_func_key_status,
+        "9": render_expansion_board_status,
     }
     renderer = pages.get(selection)
     if renderer is None:
@@ -647,7 +709,7 @@ def run_interactive(args: argparse.Namespace) -> int:
                 handle_led_page()
             elif selection == "4":
                 handle_fan_page()
-            elif selection in {"1", "2", "5", "6", "7", "8"}:
+            elif selection in {"1", "2", "5", "6", "7", "8", "9"}:
                 clear_screen()
                 print(render_page(selection, args))
                 prompt_input("\nPress Enter to return...")

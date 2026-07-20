@@ -5,15 +5,16 @@ VIM 5 40-pin ADC mapping:
   PIN10 -> ADC0 -> /sys/bus/iio/devices/iio:device0/in_voltage0_input
   PIN12 -> ADC1 -> /sys/bus/iio/devices/iio:device0/in_voltage3_input
 
-The board adc utility exposes the same inputs as:
-  adc single 0 0
-  adc single 0 3
+Wiringpi ADC reads:
+  ADC0 -> gpio aread 19
+  ADC1 -> gpio aread 20
 """
 
 from __future__ import annotations
 
 import argparse
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -21,9 +22,9 @@ from pathlib import Path
 
 IIO_DEVICE = Path("/sys/bus/iio/devices/iio:device0")
 CHANNELS = {
-    0: {"pin": "PIN10", "name": "ADC0", "iio_channel": 0, "adc_single": "adc single 0 0"},
-    1: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "adc_single": "adc single 0 3"},
-    3: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "adc_single": "adc single 0 3"},
+    0: {"pin": "PIN10", "name": "ADC0", "iio_channel": 0, "wpi_pin": 19},
+    1: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "wpi_pin": 20},
+    3: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "wpi_pin": 20},
 }
 STATUS_CHANNELS = (0, 1)
 
@@ -70,7 +71,8 @@ def print_sample(channel: int, path: Path, input_value: str) -> None:
         f"pin={meta['pin']} "
         f"name={meta['name']} "
         f"iio_channel={meta['iio_channel']} "
-        f"adc_command='{meta['adc_single']}' "
+        f"wpi_pin={meta['wpi_pin']} "
+        f"wiringpi_command='gpio aread {meta['wpi_pin']}' "
         f"input={input_value} "
         f"path={path}",
         flush=True,
@@ -85,8 +87,8 @@ def cmd_status(args: argparse.Namespace) -> int:
         state = "readable" if path.is_file() and path.stat().st_mode else "missing"
         print(
             f"channel={channel} pin={meta['pin']} name={meta['name']} "
-            f"iio_channel={meta['iio_channel']} adc_command='{meta['adc_single']}' "
-            f"state={state} path={path}"
+            f"iio_channel={meta['iio_channel']} wpi_pin={meta['wpi_pin']} "
+            f"wiringpi_command='gpio aread {meta['wpi_pin']}' state={state} path={path}"
         )
     return 0
 
@@ -95,6 +97,27 @@ def cmd_read(args: argparse.Namespace) -> int:
     path = channel_path(args.channel, args.iio_device)
     input_value = read_input(path)
     print_sample(args.channel, path, input_value)
+    return 0
+
+
+def cmd_aread(args: argparse.Namespace) -> int:
+    meta = CHANNELS[args.channel]
+    completed = subprocess.run(
+        ["gpio", "aread", str(meta["wpi_pin"])],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        output = (completed.stderr or completed.stdout).strip()
+        print(output or "gpio aread failed", file=sys.stderr)
+        return completed.returncode
+    print(
+        f"channel={args.channel} pin={meta['pin']} name={meta['name']} "
+        f"wpi_pin={meta['wpi_pin']} input={completed.stdout.strip()}",
+        flush=True,
+    )
     return 0
 
 
@@ -136,6 +159,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(read_parser)
     read_parser.add_argument("channel", type=parse_channel, choices=sorted(CHANNELS))
     read_parser.set_defaults(func=cmd_read)
+
+    aread_parser = subparsers.add_parser("aread", help="read one ADC sample through wiringpi")
+    aread_parser.add_argument("channel", type=parse_channel, choices=sorted(CHANNELS))
+    aread_parser.set_defaults(func=cmd_aread)
 
     watch_parser = subparsers.add_parser("watch", help="read ADC samples repeatedly")
     add_common_args(watch_parser)

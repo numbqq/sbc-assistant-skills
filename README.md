@@ -136,7 +136,7 @@ Coverage:
 
 - LED via `/sys/class/leds/pwmled`
 - Fan via `/usr/local/bin/fan.sh`
-- ADC0/ADC1 via Linux IIO input nodes or `adc single`
+- ADC0/ADC1 via Linux IIO input nodes or wiringpi `gpio aread`
 - GPIO via wiringpi
 - PWM on PIN35 after the `pwm_j` overlay is active
 - I2C3 on PIN22/PIN23 after `i2c_d`, and I2C6 on PIN25/PIN26 after `i2c_g`
@@ -421,11 +421,14 @@ Example helper commands:
 
 ```bash
 python3 scripts/adc_read.py read 0
+python3 scripts/adc_read.py aread 0
 python3 scripts/adc_read.py watch 1 --interval 1 --count 5
+scripts/vim-5_hw_minimal.sh adc aread 0
+scripts/vim-5_hw_minimal.sh adc aread 1
+gpio aread 19
+gpio aread 20
 cat /sys/bus/iio/devices/iio:device0/in_voltage0_input
 cat /sys/bus/iio/devices/iio:device0/in_voltage3_input
-adc single 0 0
-adc single 0 3
 sudo python3 scripts/i2c_read_write.py read --bus 3 --addr 0x40 --reg 0x00
 sudo python3 scripts/oled_ssd1306_demo.py --bus 3 --addr 0x3c
 sudo python3 scripts/spi_transfer.py transfer --device /dev/spidev1.0 --data 0x9f 0x00 0x00 0x00
@@ -461,8 +464,9 @@ Current VIM4 notes:
 Current VIM 5 notes:
 
 - PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`
-  or `adc single 0 0`; PIN12 is ADC1 at
-  `/sys/bus/iio/devices/iio:device0/in_voltage3_input` or `adc single 0 3`.
+  or wiringpi `gpio aread 19`; PIN12 is ADC1 at
+  `/sys/bus/iio/devices/iio:device0/in_voltage3_input` or wiringpi
+  `gpio aread 20`.
 - Check `/dev/i2c-3` for PIN22/PIN23 after `i2c_d`; check `/dev/i2c-6`
   for PIN25/PIN26 after `i2c_g`.
 - SPI1 uses PIN25/PIN26/PIN36/PIN37 after `spi1`, exposes

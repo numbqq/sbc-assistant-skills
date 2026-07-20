@@ -53,10 +53,12 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
         self.assertEqual(sample["pin"], "PIN10")
         self.assertEqual(sample["name"], "ADC0")
         self.assertEqual(sample["iio_channel"], 0)
+        self.assertEqual(sample["wpi_pin"], 19)
         self.assertEqual(sample["input"], "2048")
         self.assertEqual(adc1_sample["pin"], "PIN12")
         self.assertEqual(adc1_sample["name"], "ADC1")
         self.assertEqual(adc1_sample["iio_channel"], 3)
+        self.assertEqual(adc1_sample["wpi_pin"], 20)
         self.assertEqual(adc1_sample["input"], "1024")
 
     def test_gpio_map_lists_vim_5_40pin_alternate_overlays(self):
@@ -64,8 +66,9 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
 
         self.assertIn("in_voltage0_input", text)
         self.assertIn("in_voltage3_input", text)
-        self.assertIn("adc single 0 0", text)
-        self.assertIn("adc single 0 3", text)
+        self.assertIn("gpio aread 19", text)
+        self.assertIn("gpio aread 20", text)
+        self.assertNotIn("adc " + "single", text)
         self.assertIn("PIN.D13", text)
         self.assertIn("spdifout", text)
         self.assertIn("uart_ao_e", text)

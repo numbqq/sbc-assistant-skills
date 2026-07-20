@@ -34,7 +34,7 @@ Usage:
   $0 fan <on|auto|off|low|mid|high|temp|trig|mode>
   $0 adc status
   $0 adc read <0|1|3>
-  $0 adc single 0 <0|3>
+  $0 adc aread <0|1|3|19|20>
   $0 gpio readall
   $0 gpio map
   $0 gpio in <pin>
@@ -168,10 +168,26 @@ adc_header_pin_for_channel() {
   esac
 }
 
-adc_single_command_for_channel() {
+adc_wpi_pin_for_channel() {
   case "$1" in
-    0) echo "adc single 0 0" ;;
-    1|3) echo "adc single 0 3" ;;
+    0) echo "19" ;;
+    1|3) echo "20" ;;
+    *) return 1 ;;
+  esac
+}
+
+adc_wpi_pin_for_aread_arg() {
+  case "$1" in
+    0|19) echo "19" ;;
+    1|3|20) echo "20" ;;
+    *) return 1 ;;
+  esac
+}
+
+adc_header_pin_for_aread_arg() {
+  case "$1" in
+    0|19) echo "PIN10/ADC0" ;;
+    1|3|20) echo "PIN12/ADC1" ;;
     *) return 1 ;;
   esac
 }
@@ -183,12 +199,13 @@ adc_status() {
     pin="$(adc_header_pin_for_channel "$channel")"
     path="$(adc_input_path_for_channel "$channel")"
     iio_channel="$(adc_iio_channel_for_channel "$channel")"
-    adc_command="$(adc_single_command_for_channel "$channel")"
+    wpi_pin="$(adc_wpi_pin_for_channel "$channel")"
     echo "channel=$channel"
     echo "header_pin=$pin"
     echo "iio_channel=$iio_channel"
     echo "input_path=$path"
-    echo "adc_command=$adc_command"
+    echo "wpi_pin=$wpi_pin"
+    echo "wiringpi_command=gpio aread $wpi_pin"
     if [ -r "$path" ]; then
       echo "adc_ready=yes"
       echo -n "input="
@@ -208,7 +225,7 @@ adc_read() {
   fi
   pin="$(adc_header_pin_for_channel "$channel")"
   iio_channel="$(adc_iio_channel_for_channel "$channel")"
-  adc_command="$(adc_single_command_for_channel "$channel")"
+  wpi_pin="$(adc_wpi_pin_for_channel "$channel")"
   if [ ! -r "$path" ]; then
     echo "missing or unreadable ADC input node: $path" >&2
     exit 1
@@ -216,22 +233,27 @@ adc_read() {
   echo "channel=$channel"
   echo "header_pin=$pin"
   echo "iio_channel=$iio_channel"
-  echo "adc_command=$adc_command"
+  echo "wpi_pin=$wpi_pin"
+  echo "wiringpi_command=gpio aread $wpi_pin"
   echo "voltage_range=0..1.8V"
   echo "input_path=$path"
   echo -n "input="
   cat "$path"
 }
 
-adc_single() {
-  chip="${1:?adc chip required}"
-  channel="${2:?adc channel required}"
-  case "$chip:$channel" in
-    0:0|0:3) ;;
-    *) echo "VIM 5 supports adc single 0 0 and adc single 0 3 for the 40-pin ADC inputs" >&2; exit 1 ;;
-  esac
-  need_cmd adc
-  adc single "$chip" "$channel"
+adc_aread() {
+  value="$1"
+  if ! wpi_pin="$(adc_wpi_pin_for_aread_arg "$value")"; then
+    echo "adc aread argument must be 0, 1, 3, 19, or 20" >&2
+    exit 1
+  fi
+  pin="$(adc_header_pin_for_aread_arg "$value")"
+  need_cmd gpio
+  echo "header_pin=$pin"
+  echo "wpi_pin=$wpi_pin"
+  echo "wiringpi_command=gpio aread $wpi_pin"
+  echo -n "input="
+  gpio aread "$wpi_pin"
 }
 
 i2c_overlay_for_bus() {
@@ -539,9 +561,9 @@ Physical  wPi  GPIO  Name       Mode  V  Pull   Notes
 
 ADC-only entries:
 ADC voltage range: 0..1.8V
-Physical  wPi  Name     Input node                                             adc command
-10        19   ADC0     /sys/bus/iio/devices/iio:device0/in_voltage0_input  adc single 0 0
-12        20   ADC1     /sys/bus/iio/devices/iio:device0/in_voltage3_input  adc single 0 3
+Physical  wPi  Name     Input node                                             wiringpi ADC command
+10        19   ADC0     /sys/bus/iio/devices/iio:device0/in_voltage0_input  gpio aread 19
+12        20   ADC1     /sys/bus/iio/devices/iio:device0/in_voltage3_input  gpio aread 20
 
 Non-GPIO/reserved/power pins:
 1,2=5V  20,27=3V3  5,9,14,17,21,24,28,34,40=GND  11=1.8V
@@ -558,8 +580,8 @@ case "${1:-}" in
       read)
         adc_read "${3:?channel required}"
         ;;
-      single)
-        adc_single "${3:?adc chip required}" "${4:?adc channel required}"
+      aread)
+        adc_aread "${3:?channel or wPi pin required}"
         ;;
       *) usage; exit 1 ;;
     esac

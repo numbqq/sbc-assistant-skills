@@ -64,9 +64,9 @@ def command_status(name: str, command: str) -> StatusItem:
 
 
 ADC_CHANNELS = {
-    0: {"pin": "PIN10", "name": "ADC0", "iio_channel": 0, "adc_single": "adc single 0 0"},
-    1: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "adc_single": "adc single 0 3"},
-    3: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "adc_single": "adc single 0 3"},
+    0: {"pin": "PIN10", "name": "ADC0", "iio_channel": 0, "wpi_pin": 19},
+    1: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "wpi_pin": 20},
+    3: {"pin": "PIN12", "name": "ADC1", "iio_channel": 3, "wpi_pin": 20},
 }
 
 
@@ -114,7 +114,7 @@ def read_adc_sample(
             "pin": meta["pin"],
             "name": meta["name"],
             "iio_channel": meta["iio_channel"],
-            "adc_single": meta["adc_single"],
+            "wpi_pin": meta["wpi_pin"],
             "state": "missing",
             "detail": f"missing {path}",
         }
@@ -124,7 +124,7 @@ def read_adc_sample(
             "pin": meta["pin"],
             "name": meta["name"],
             "iio_channel": meta["iio_channel"],
-            "adc_single": meta["adc_single"],
+            "wpi_pin": meta["wpi_pin"],
             "state": "permission denied",
             "detail": f"permission denied reading {path}",
         }
@@ -133,7 +133,7 @@ def read_adc_sample(
         "pin": meta["pin"],
         "name": meta["name"],
         "iio_channel": meta["iio_channel"],
-        "adc_single": meta["adc_single"],
+        "wpi_pin": meta["wpi_pin"],
         "state": "ready",
         "input": input_value,
         "detail": str(path),
@@ -193,7 +193,7 @@ def render_adc_monitor() -> str:
         if sample["state"] == "ready":
             lines.append(
                 f"{sample['pin']} {sample['name']}: input={sample['input']} "
-                f"iio_channel={sample['iio_channel']} command='{sample['adc_single']}'"
+                f"iio_channel={sample['iio_channel']} gpio_aread={sample['wpi_pin']}"
             )
         else:
             lines.append(f"{sample['pin']} {sample['name']}: {sample['state']} {sample['detail']}")
@@ -206,8 +206,8 @@ def render_gpio_pwm_map() -> str:
 Use the wPi column with wiringpi commands such as gpio mode/read/write/pwm.
 
 Physical  wPi  GPIO  Name       Notes
-10        19         ADC0       ADC-only, read via in_voltage0_input or adc single 0 0
-12        20         ADC1       ADC-only, read via in_voltage3_input or adc single 0 3
+10        19         ADC0       ADC-only, read via in_voltage0_input or gpio aread 19
+12        20         ADC1       ADC-only, read via in_voltage3_input or gpio aread 20
 13        1    641   PIN.D13    GPIO by default; SPDIF when spdifout is active
 15        2    637   PIN.D9     GPIO by default; UART RX when uart_ao_e is active
 16        3    636   PIN.D8     GPIO by default; UART TX when uart_ao_e is active

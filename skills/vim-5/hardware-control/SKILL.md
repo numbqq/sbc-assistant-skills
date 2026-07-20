@@ -1,6 +1,6 @@
 ---
 name: khadas-vim-5-hardware-control
-description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED/LCD, UART, Func key, fan, expansion-board green LED, analog MIC, Mic Array, or three-wire SPI display control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, board LED control uses /sys/class/leds/pwmled, expansion-board green LED uses /sys/class/leds/green_led, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or adc single, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 or spi1-lcd overlay, analog MIC uses ext-board-codec plus ALSA hw:0,1, Mic Array records from hw:0,3, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, and the board Func key uses /dev/input/event3 with device name adc_keypad.
+description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED/LCD, UART, Func key, fan, expansion-board green LED, analog MIC, Mic Array, or three-wire SPI display control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, board LED control uses /sys/class/leds/pwmled, expansion-board green LED uses /sys/class/leds/green_led, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or wiringpi gpio aread 19/20, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 or spi1-lcd overlay, analog MIC uses ext-board-codec plus ALSA hw:0,1, Mic Array records from hw:0,3, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, and the board Func key uses /dev/input/event3 with device name adc_keypad.
 ---
 
 # VIM 5 Hardware Control
@@ -12,7 +12,7 @@ Use this skill to help generate and troubleshoot minimal hardware-control script
 Supported only:
 - LED via `/sys/class/leds/pwmled`
 - FAN via `/usr/local/bin/fan.sh`
-- ADC via IIO sysfs input nodes under `/sys/bus/iio/devices/iio:device0`, or read-only `adc single`
+- ADC via IIO sysfs input nodes under `/sys/bus/iio/devices/iio:device0` or wiringpi `gpio aread`
 - GPIO via wiringpi
 - PWM via wiringpi
 - I2C via Linux `/dev/i2c-*` and Python `I2C_SLAVE` ioctl
@@ -33,7 +33,7 @@ For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exist
 - OS: Ubuntu 24.04
 - Script languages: Python or Bash
 - `wiringpi` is installed and available for GPIO/PWM on the target system
-- ADC header inputs are read-only IIO input values with a 0 to 1.8V input range: PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input` and `adc single 0 0`; PIN12 is ADC1 at `/sys/bus/iio/devices/iio:device0/in_voltage3_input` and `adc single 0 3`
+- ADC header inputs are read-only values with a 0 to 1.8V input range: PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input` or `gpio aread 19`; PIN12 is ADC1 at `/sys/bus/iio/devices/iio:device0/in_voltage3_input` or `gpio aread 20`
 - I2C access uses `/dev/i2c-<bus>` after the matching bus is exposed by the system
 - 40-pin header PIN22/PIN23 are I2C3 when `i2c_d` has been enabled and the system has rebooted
 - 40-pin header PIN25/PIN26 are I2C6 when `i2c_g` has been enabled and the system has rebooted
@@ -61,7 +61,7 @@ Before generating commands that write hardware state:
 3. Remind the user that GPIO/PWM pin numbering must match wiringpi numbering on the target board.
 4. Use `sudo` only when needed for sysfs writes, wiringpi access, or `/dev/i2c-*` permissions.
 5. For fan control, use `/usr/local/bin/fan.sh`; do not invent MCU register writes.
-6. For ADC, read only the matching `in_voltage*_input` file or use `adc single`; do not treat ADC pins as digital GPIO outputs.
+6. For ADC, read only the matching `in_voltage*_input` file or use wiringpi `gpio aread 19` for ADC0 and `gpio aread 20` for ADC1; do not treat ADC pins as digital GPIO outputs.
 7. For I2C on bus 3 or bus 6, check `/dev/i2c-3` or `/dev/i2c-6` before I2C reads/writes.
 8. For I2C writes, confirm the bus and address with read-only discovery first when possible.
 9. For SPI1, check `/dev/spidev1.0` before SPI transfers.
@@ -124,8 +124,8 @@ Use IIO input files:
 ```
 
 40-pin header ADC mapping:
-- PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`; equivalent board utility command is `adc single 0 0`
-- PIN12 is ADC1 at `/sys/bus/iio/devices/iio:device0/in_voltage3_input`; equivalent board utility command is `adc single 0 3`
+- PIN10 is ADC0 at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`; wiringpi ADC command is `gpio aread 19`
+- PIN12 is ADC1 at `/sys/bus/iio/devices/iio:device0/in_voltage3_input`; wiringpi ADC command is `gpio aread 20`
 - ADC input voltage range is 0 to 1.8V
 
 Useful checks:
@@ -134,10 +134,12 @@ Useful checks:
 scripts/vim-5_hw_minimal.sh adc status
 scripts/vim-5_hw_minimal.sh adc read 0
 scripts/vim-5_hw_minimal.sh adc read 1
+scripts/vim-5_hw_minimal.sh adc aread 0
+scripts/vim-5_hw_minimal.sh adc aread 1
+gpio aread 19
+gpio aread 20
 cat /sys/bus/iio/devices/iio:device0/in_voltage0_input
 cat /sys/bus/iio/devices/iio:device0/in_voltage3_input
-adc single 0 0
-adc single 0 3
 ```
 
 ADC input values are board/driver readings. Do not convert them again unless the target image's IIO units or scale are known.

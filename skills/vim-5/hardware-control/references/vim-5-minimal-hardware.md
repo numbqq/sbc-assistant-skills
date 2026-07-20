@@ -4,7 +4,7 @@
 
 - Board: Khadas VIM 5
 - OS: Ubuntu 24.04
-- ADC: Linux IIO sysfs input nodes or read-only `adc single`, 0 to 1.8V input range
+- ADC: Linux IIO sysfs input nodes or wiringpi `gpio aread`, 0 to 1.8V input range
 - GPIO/PWM: wiringpi
 - I2C: Linux `/dev/i2c-*` plus Python `I2C_SLAVE` ioctl helpers
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
@@ -102,8 +102,8 @@ ADC entries in the default table:
 
 | Physical | wPi | Name | Notes |
 | --- | ---: | --- | --- |
-| 10 | 19 | ADC0 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`; equivalent command is `adc single 0 0`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
-| 12 | 20 | ADC1 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage3_input`; equivalent command is `adc single 0 3`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
+| 10 | 19 | ADC0 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage0_input`; wiringpi command is `gpio aread 19`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
+| 12 | 20 | ADC1 | Analog channel at `/sys/bus/iio/devices/iio:device0/in_voltage3_input`; wiringpi command is `gpio aread 20`; 0 to 1.8V input range; no Linux GPIO number is reported in the default table. |
 
 Non-GPIO or reserved/power pins in the default table:
 
@@ -140,12 +140,12 @@ Only use pins that support PWM.
 
 ## ADC commands
 
-PIN10 and PIN12 are ADC inputs, not digital GPIO outputs. The ADC input voltage range is 0 to 1.8V. Read values through Linux IIO sysfs or the board `adc` utility:
+PIN10 and PIN12 are ADC inputs, not digital GPIO outputs. The ADC input voltage range is 0 to 1.8V. Read values through Linux IIO sysfs or wiringpi ADC reads:
 
-| Header pin | Header ADC | IIO input node | Board utility |
+| Header pin | Header ADC | IIO input node | Wiringpi command |
 | --- | --- | --- | --- |
-| PIN10 | ADC0 | `/sys/bus/iio/devices/iio:device0/in_voltage0_input` | `adc single 0 0` |
-| PIN12 | ADC1 | `/sys/bus/iio/devices/iio:device0/in_voltage3_input` | `adc single 0 3` |
+| PIN10 | ADC0 | `/sys/bus/iio/devices/iio:device0/in_voltage0_input` | `gpio aread 19` |
+| PIN12 | ADC1 | `/sys/bus/iio/devices/iio:device0/in_voltage3_input` | `gpio aread 20` |
 
 Useful checks:
 
@@ -153,10 +153,12 @@ Useful checks:
 scripts/vim-5_hw_minimal.sh adc status
 scripts/vim-5_hw_minimal.sh adc read 0
 scripts/vim-5_hw_minimal.sh adc read 1
+scripts/vim-5_hw_minimal.sh adc aread 0
+scripts/vim-5_hw_minimal.sh adc aread 1
+gpio aread 19
+gpio aread 20
 cat /sys/bus/iio/devices/iio:device0/in_voltage0_input
 cat /sys/bus/iio/devices/iio:device0/in_voltage3_input
-adc single 0 0
-adc single 0 3
 ```
 
 Keep ADC examples read-only. IIO input values are driver readings; only convert them again when the target system's units or IIO scale are known.

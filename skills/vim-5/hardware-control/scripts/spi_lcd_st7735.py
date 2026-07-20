@@ -175,6 +175,33 @@ def command_available(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def apt_package_installed(package: str) -> bool:
+    if not command_available("dpkg-query"):
+        return False
+    completed = subprocess.run(
+        ["dpkg-query", "-W", "-f=${Status}", package],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    return completed.stdout.strip() == "install ok installed"
+
+
+def missing_python_module_note(module: str, package: str) -> str:
+    if apt_package_installed(package):
+        return (
+            f"{package} is installed for the system Python, but active Python "
+            f"{sys.executable} cannot import {module}; run with /usr/bin/python3, "
+            "deactivate Conda/base, or install the module into this Python environment"
+        )
+    return f"install with: sudo apt install {package}"
+
+
+def missing_spidev_message() -> str:
+    return "missing python spidev module; " + missing_python_module_note("spidev", "python3-spidev")
+
+
 class PythonGpiodPin:
     def __init__(self, line_name: str, initial: int = 0) -> None:
         self.line_name = line_name
@@ -307,7 +334,7 @@ class LcdSt7735:
         try:
             import spidev
         except ImportError as exc:
-            raise RuntimeError("missing python spidev module; install package python3-spidev") from exc
+            raise RuntimeError(missing_spidev_message()) from exc
 
         bus, dev = parse_spidev(spi_path)
         self.spi = spidev.SpiDev()
@@ -496,6 +523,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     ready = spi_path.exists() and spidev_ok and (gpiod_ok or gpioset_ok)
 
     print("display=ST7735_160x80")
+    print(f"python_executable={sys.executable}")
     print(f"required_overlay={SPI_LCD_OVERLAY}")
     print(f"overlay_config={OVERLAY_CONFIG}")
     print(f"overlay_dir={OVERLAY_DIR}")
@@ -506,6 +534,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(gpio_line_status("reset", args.reset_line))
     print(gpio_line_status("dc", args.dc_line))
     print("apt_dependencies=python3-spidev gpiod python3-libgpiod")
+    print("apt_package_python3_spidev=" + ("installed" if apt_package_installed("python3-spidev") else "missing_or_unknown"))
     print("required_python_module_spidev=" + module_state("spidev"))
     print("optional_python_module_gpiod=" + module_state("gpiod"))
     print("command_gpioset=" + command_state("gpioset"))
@@ -516,9 +545,16 @@ def cmd_status(args: argparse.Namespace) -> int:
     if not spi_path.exists():
         print(f"missing_node_note=enable {SPI_LCD_OVERLAY} in fdt_overlays and reboot")
     if not spidev_ok:
-        print("missing_dependency_note=install python3-spidev")
+        print("missing_dependency_note=" + missing_python_module_note("spidev", "python3-spidev"))
     if not (gpiod_ok or gpioset_ok):
-        print("missing_gpio_dependency_note=install gpiod or python3-libgpiod")
+        if apt_package_installed("python3-libgpiod") or apt_package_installed("gpiod"):
+            print(
+                "missing_gpio_dependency_note="
+                + missing_python_module_note("gpiod", "python3-libgpiod")
+                + "; gpioset from package gpiod is also acceptable"
+            )
+        else:
+            print("missing_gpio_dependency_note=install with: sudo apt install gpiod python3-libgpiod")
     return 0
 
 

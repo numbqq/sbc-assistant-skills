@@ -4,6 +4,7 @@ import io
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 HELPER_PATH = (
@@ -41,7 +42,12 @@ class SpiLcdSt7735Test(unittest.TestCase):
         args = spi_lcd_st7735.build_parser().parse_args(["status", "--spi", "/tmp/missing-spidev"])
         stream = io.StringIO()
 
-        with contextlib.redirect_stdout(stream):
+        with (
+            mock.patch.object(spi_lcd_st7735, "module_available", return_value=False),
+            mock.patch.object(spi_lcd_st7735, "command_available", return_value=False),
+            mock.patch.object(spi_lcd_st7735, "apt_package_installed", return_value=False),
+            contextlib.redirect_stdout(stream),
+        ):
             rc = spi_lcd_st7735.cmd_status(args)
 
         text = stream.getvalue()
@@ -50,7 +56,19 @@ class SpiLcdSt7735Test(unittest.TestCase):
         self.assertIn("apt_dependencies=python3-spidev gpiod python3-libgpiod", text)
         self.assertIn("default_reset_line=GPIOD_5", text)
         self.assertIn("default_dc_line=GPIOM_1", text)
+        self.assertIn("python_executable=", text)
+        self.assertIn("apt_package_python3_spidev=missing_or_unknown", text)
+        self.assertIn("missing_dependency_note=install with: sudo apt install python3-spidev", text)
+        self.assertIn("missing_gpio_dependency_note=install with: sudo apt install gpiod python3-libgpiod", text)
         self.assertIn("spi_lcd_ready=no", text)
+
+    def test_missing_spidev_note_mentions_active_python_when_apt_package_exists(self):
+        with mock.patch.object(spi_lcd_st7735, "apt_package_installed", return_value=True):
+            note = spi_lcd_st7735.missing_spidev_message()
+
+        self.assertIn("python3-spidev is installed for the system Python", note)
+        self.assertIn(spi_lcd_st7735.sys.executable, note)
+        self.assertIn("/usr/bin/python3", note)
 
 
 if __name__ == "__main__":

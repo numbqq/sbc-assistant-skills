@@ -1,4 +1,4 @@
 interface:
   display_name: "VIM 5 Hardware Control"
   short_description: "VIM 5 board and expansion hardware control helper."
-  default_prompt: "Use $khadas-vim-5-hardware-control to write a minimal VIM 5 hardware control script for board or expansion hardware; check device nodes and overlays before I2C/SPI/UART/audio/display access."
+  default_prompt: "Use $khadas-vim-5-hardware-control to write a minimal VIM 5 hardware control script for board or expansion hardware; check runtime dependencies, device nodes, and overlays before running I2C/SPI/UART/audio/display access."

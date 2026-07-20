@@ -53,6 +53,27 @@ For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exist
 - Expansion-board three-wire SPI OLED/LCD requires `fdt_overlays=spi1-lcd`, uses `/dev/spidev1.0`, and is controlled by bundled helper `scripts/spi_lcd_st7735.py`
 - The `ext-board-codec` overlay shares pins with I2S and SPI functions; do not enable or use conflicting overlays at the same time
 
+## Runtime dependency checks
+
+Before running generated or bundled programs on a VIM 5 target:
+1. Identify the commands, Python modules, device nodes, overlays, and permissions required for the requested hardware block.
+2. Run read-only preflight checks when possible, such as `command -v <cmd>`, `python3 -c 'import sys; print(sys.executable); import <module>'`, `dpkg-query -W <package>`, `ls -l /dev/...`, or the matching `scripts/vim-5_hw_minimal.sh ... status` command.
+3. If a command or Python module is missing, stop before running the hardware operation and tell the user whether the OS package is missing or the active Python cannot see an already-installed OS package.
+4. Ask before running `sudo apt update` or `sudo apt install`. If you cannot install packages in the current environment, provide the install command before the run command.
+5. Keep package installation separate from hardware-control scripts unless the user explicitly asks for an installer.
+6. After installation, rerun the read-only status or dependency check before running the hardware operation.
+
+Common dependency mapping:
+- GPIO/PWM and wiringpi ADC reads require the `gpio` command from the Khadas/wiringpi package. If missing, tell the user to install the VIM 5 image's wiringpi package first; on images that provide an apt package, try `sudo apt install wiringpi`.
+- I2C bus discovery with `i2cdetect` requires `i2c-tools`: `sudo apt install i2c-tools`.
+- I2C, SSD1306 OLED, SPI transfer, UART, and Func key bundled Python helpers require `python3` only and use the Python standard library by default.
+- Do not require `smbus2`, `spidev`, or `pyserial` for the bundled I2C, SPI transfer, or UART helpers unless the user explicitly requests those APIs.
+- Expansion-board analog MIC and Mic Array commands require `amixer` and `arecord` from `alsa-utils`: `sudo apt install alsa-utils`.
+- Expansion-board three-wire SPI OLED/LCD requires `python3-spidev` and `gpiod`; `python3-libgpiod` is optional when `gpioset` from `gpiod` is available. Use `sudo apt install python3-spidev gpiod python3-libgpiod` only when the package is not installed.
+- If `dpkg -l` shows `python3-spidev` is installed but `python3 -c 'import spidev'` fails, diagnose Python environment mismatch instead of repeating the apt install instruction. Show `sys.executable`; for Conda/base or virtualenv Python, suggest `conda deactivate`, running `/usr/bin/python3 ...`, or installing the module into that active Python environment.
+
+When creating scripts, include a small dependency preflight. In Bash, use `command -v`; in Python, use `shutil.which()` for commands and `importlib.util.find_spec()` for optional modules. Error messages should include the active Python executable for Python modules, and should distinguish "install the apt package" from "use the system Python or deactivate Conda/base".
+
 ## Safety rules
 
 Before generating commands that write hardware state:
@@ -72,14 +93,16 @@ Before generating commands that write hardware state:
 14. For expansion-board analog MIC, remind users that the expansion board must be connected and `ext-board-codec` must be active after reboot before ALSA capture from `hw:0,1` works.
 15. For expansion-board SPI OLED/LCD, check `/dev/spidev1.0` before display transfers and use the bundled `scripts/spi_lcd_st7735.py` helper for ST7735-compatible panels.
 16. Avoid combining `ext-board-codec`, `spi1-lcd`, I2S, or SPI overlays that claim the same shared pins unless the user provides a confirmed mux configuration.
+17. Do dependency preflight checks before hardware writes or long-running reads; missing runtime packages should be installed or explicitly acknowledged before running the program.
 
 ## Workflow
 
 1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, Func key, or expansion-board device.
-2. Generate the smallest working Bash or Python script.
-3. Include a read/check command when possible.
-4. Include short usage examples.
-5. Avoid Device Tree, kernel overlay, or driver rebuild steps except a short VIM 5 40-pin I2C/SPI/UART note when the matching device node is missing.
+2. Identify runtime dependencies and device-node or overlay readiness for that block.
+3. Generate the smallest working Bash or Python script with a minimal dependency preflight when the script uses external commands or optional Python modules.
+4. Include a read/check command when possible.
+5. Include short usage examples that run the status or dependency check before the hardware operation.
+6. Avoid Device Tree, kernel overlay, or driver rebuild steps except a short VIM 5 40-pin I2C/SPI/UART note when the matching device node is missing.
 
 ## LED control
 
@@ -388,6 +411,7 @@ The display requires `fdt_overlays=spi1-lcd`, uses `/dev/spidev1.0`, and uses th
 For scripts, include:
 - filename
 - code block
+- dependency preflight or explicit install command when runtime packages may be missing
 - usage examples
 - expected output or behavior
 - short safety note if the script writes hardware state

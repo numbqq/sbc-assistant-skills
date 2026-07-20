@@ -17,6 +17,57 @@
 - Mic Array: ALSA capture device `hw:0,3`
 - Expansion-board three-wire SPI OLED/LCD: `spi1-lcd` overlay, `/dev/spidev1.0`, bundled ST7735 helper `scripts/spi_lcd_st7735.py`
 
+## Runtime dependency preflight
+
+Check dependencies before running hardware operations. If a command or Python module is missing, install the package first, rerun the check, then run the program.
+
+Common checks:
+
+```bash
+command -v python3
+command -v gpio        # wiringpi GPIO/PWM/ADC command
+command -v i2cdetect   # package: i2c-tools
+command -v amixer      # package: alsa-utils
+command -v arecord     # package: alsa-utils
+python3 -c 'import sys; print(sys.executable)'
+python3 -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("spidev") else 1)'
+dpkg-query -W -f='${Status}\n' python3-spidev
+command -v gpioset || python3 -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("gpiod") else 1)'
+```
+
+Known apt packages:
+
+```bash
+sudo apt update
+sudo apt install i2c-tools
+sudo apt install alsa-utils
+sudo apt install python3-spidev gpiod python3-libgpiod
+```
+
+For GPIO/PWM and wiringpi ADC reads, install the VIM 5 image's Khadas/wiringpi package when `gpio` is missing. On images that provide an apt package, try:
+
+```bash
+sudo apt install wiringpi
+```
+
+Bundled I2C, SSD1306 OLED, SPI transfer, UART, and Func key Python helpers use the Python standard library by default. Do not install `smbus2`, external `spidev`, or `pyserial` for those helpers unless the task explicitly requests those APIs. The expansion-board ST7735 SPI LCD helper is the exception: it requires `python3-spidev` and needs either `gpioset` from `gpiod` or the Python `gpiod` module.
+
+If `python3-spidev` is installed but the script still reports `missing python spidev module`, check the active interpreter:
+
+```bash
+python3 -c 'import sys; print(sys.executable); import spidev; print(spidev.__file__)'
+/usr/bin/python3 -c 'import sys; print(sys.executable); import spidev; print(spidev.__file__)'
+```
+
+When `/usr/bin/python3` can import `spidev` but `python3` cannot, the active shell is using a Conda/base or virtualenv Python that cannot see apt packages under `/usr/lib/python3/dist-packages`. Use one of:
+
+```bash
+conda deactivate
+/usr/bin/python3 scripts/spi_lcd_sys_monitor.py --interval 1
+```
+
+Alternatively, install a compatible `spidev` module into the active Python environment. Prefer `/usr/bin/python3` for VIM 5 hardware scripts that rely on Ubuntu apt packages.
+
 ## Fan commands
 
 The fan is controlled by MCU. Use only the official helper script:

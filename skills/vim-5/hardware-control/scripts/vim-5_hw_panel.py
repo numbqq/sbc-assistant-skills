@@ -32,6 +32,18 @@ SPI_LCD_HELPER_REPO_PATH = "skills/vim-5/hardware-control/scripts/spi_lcd_st7735
 SPI_LCD_DEPENDENCIES = "python3-spidev gpiod python3-libgpiod"
 ANALOG_MIC_DEVICE = "hw:0,1"
 MIC_ARRAY_DEVICE = "hw:0,3"
+COMMAND_INSTALL_HINTS = {
+    "python3": "install with: sudo apt install python3",
+    "gpio": (
+        "install the Khadas/wiringpi package for VIM 5 first; "
+        "on images with an apt package, try: sudo apt install wiringpi"
+    ),
+    "i2cdetect": "install with: sudo apt install i2c-tools",
+    "amixer": "install with: sudo apt install alsa-utils",
+    "arecord": "install with: sudo apt install alsa-utils",
+    "gpioset": "install with: sudo apt install gpiod",
+    "gpiofind": "install with: sudo apt install gpiod",
+}
 
 
 @dataclass(frozen=True)
@@ -59,7 +71,11 @@ def path_status(
 def command_status(name: str, command: str) -> StatusItem:
     resolved = shutil.which(command)
     if resolved is None:
-        return StatusItem(name, "missing", f"missing command: {command}")
+        detail = f"missing command: {command}"
+        hint = COMMAND_INSTALL_HINTS.get(command)
+        if hint:
+            detail = f"{detail}; {hint}"
+        return StatusItem(name, "missing", detail)
     return StatusItem(name, "ready", resolved)
 
 

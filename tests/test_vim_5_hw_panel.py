@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 HELPER_PATH = (
@@ -111,6 +112,14 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
         self.assertIn("python3-spidev", vim_5_hw_panel.SPI_LCD_DEPENDENCIES)
         self.assertEqual(vim_5_hw_panel.ANALOG_MIC_DEVICE, "hw:0,1")
         self.assertEqual(vim_5_hw_panel.MIC_ARRAY_DEVICE, "hw:0,3")
+
+    def test_command_status_includes_install_hint_for_missing_dependency(self):
+        with mock.patch.object(vim_5_hw_panel.shutil, "which", return_value=None):
+            status = vim_5_hw_panel.command_status("arecord", "arecord")
+
+        self.assertEqual(status.state, "missing")
+        self.assertIn("missing command: arecord", status.detail)
+        self.assertIn("sudo apt install alsa-utils", status.detail)
 
     def test_expansion_board_status_includes_audio_and_spi_lcd_guidance(self):
         text = vim_5_hw_panel.render_expansion_board_status()

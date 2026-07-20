@@ -72,17 +72,108 @@ Usage:
 USAGE
 }
 
+install_hint_for_cmd() {
+  case "$1" in
+    python3)
+      echo "install with: sudo apt install python3"
+      ;;
+    gpio)
+      echo "install the Khadas/wiringpi package for VIM 5 first; on images with an apt package, try: sudo apt install wiringpi"
+      ;;
+    i2cdetect)
+      echo "install with: sudo apt install i2c-tools"
+      ;;
+    amixer|arecord)
+      echo "install with: sudo apt install alsa-utils"
+      ;;
+    gpioset|gpiofind)
+      echo "install with: sudo apt install gpiod"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 1; }
+  local cmd
+  local hint
+  cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "missing command: $cmd" >&2
+  if hint="$(install_hint_for_cmd "$cmd")"; then
+    echo "$hint" >&2
+  fi
+  exit 1
 }
 
 print_command_status() {
+  local cmd
+  local hint
   cmd="$1"
   if command -v "$cmd" >/dev/null 2>&1; then
     echo "command_${cmd}=present:$(command -v "$cmd")"
   else
     echo "command_${cmd}=missing"
+    if hint="$(install_hint_for_cmd "$cmd")"; then
+      echo "command_${cmd}_install_hint=$hint"
+    fi
   fi
+}
+
+apt_package_installed() {
+  local package
+  package="$1"
+  command -v dpkg-query >/dev/null 2>&1 || return 1
+  [ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" = "install ok installed" ]
+}
+
+python_executable() {
+  need_cmd python3
+  python3 -c "import sys; print(sys.executable)"
+}
+
+python_module_present() {
+  local module
+  module="$1"
+  need_cmd python3
+  python3 -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('$module') else 1)"
+}
+
+need_python_module() {
+  local module
+  local package
+  module="$1"
+  package="$2"
+  if python_module_present "$module"; then
+    return 0
+  fi
+  echo "missing Python module: $module" >&2
+  if apt_package_installed "$package"; then
+    echo "$package is installed for the system Python, but active Python $(python_executable) cannot import $module" >&2
+    echo "run with /usr/bin/python3, deactivate Conda/base, or install the module into this Python environment" >&2
+  else
+    echo "install with: sudo apt install $package" >&2
+  fi
+  exit 1
+}
+
+need_spi_lcd_dependencies() {
+  need_cmd python3
+  need_python_module spidev python3-spidev
+  if python_module_present gpiod || command -v gpioset >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "missing GPIO dependency for SPI LCD: need Python module gpiod or command gpioset" >&2
+  if apt_package_installed gpiod || apt_package_installed python3-libgpiod; then
+    echo "gpiod/python3-libgpiod appears installed for the system environment, but active Python $(python_executable) cannot import gpiod and gpioset is not in PATH" >&2
+    echo "run with /usr/bin/python3, deactivate Conda/base, or fix PATH/Python environment" >&2
+  else
+    echo "install with: sudo apt install gpiod python3-libgpiod" >&2
+  fi
+  exit 1
 }
 
 repo_relative_path() {
@@ -840,17 +931,17 @@ case "${1:-}" in
             ext_board_spi_lcd_status
             ;;
           test)
-            need_cmd python3
+            need_spi_lcd_dependencies
             test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
             python3 "$SPI_LCD_HELPER" test
             ;;
           clear)
-            need_cmd python3
+            need_spi_lcd_dependencies
             test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
             python3 "$SPI_LCD_HELPER" clear --color "${4:-black}"
             ;;
           text)
-            need_cmd python3
+            need_spi_lcd_dependencies
             test -f "$SPI_LCD_HELPER" || { echo "missing SPI LCD helper: $SPI_LCD_HELPER" >&2; exit 1; }
             shift 3
             if [ "$#" -eq 0 ]; then

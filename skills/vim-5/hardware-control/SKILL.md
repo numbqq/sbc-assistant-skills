@@ -24,6 +24,7 @@ Supported only:
 - VIM 5 expansion-board analog MIC via `ext-board-codec`, ALSA route setup, and `arecord` on `hw:0,1`
 - VIM 5 Mic Array recording via `arecord` on `hw:0,3`
 - VIM 5 expansion-board three-wire SPI OLED/LCD via `spi1-lcd`, `/dev/spidev1.0`, and the bundled `scripts/spi_lcd_st7735.py` ST7735 helper
+- VIM 5 SPI LCD system-status dashboard via `scripts/spi_lcd_sys_monitor.py`
 
 For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exists. Do not treat overlay file contents as runtime status because `fdt_overlays` changes require reboot to take effect.
 
@@ -405,6 +406,13 @@ scripts/vim-5_hw_minimal.sh ext-board spi-lcd text "Khadas" "VIM 5"
 ```
 
 The display requires `fdt_overlays=spi1-lcd`, uses `/dev/spidev1.0`, and uses the bundled `scripts/spi_lcd_st7735.py` helper. Install dependencies with `sudo apt install python3-spidev gpiod python3-libgpiod`; `python3-libgpiod` is optional when `gpioset` from `gpiod` is available. The `ext-board-codec` overlay shares pins with I2S and SPI functions, so avoid conflicting overlay combinations unless the user has confirmed the mux.
+
+For a live system dashboard on the same panel, use:
+
+```bash
+python3 scripts/spi_lcd_sys_monitor.py --interval 1
+python3 scripts/spi_lcd_sys_monitor.py --status
+```
 
 ## Output style
 

@@ -512,3 +512,13 @@ python3 scripts/spi_lcd_st7735.py test \
   --reset-line gpiochip10:5 \
   --dc-line gpiochip3:1
 ```
+
+For a live system dashboard on the same panel, use the bundled monitor script:
+
+```bash
+python3 scripts/spi_lcd_sys_monitor.py --interval 1
+python3 scripts/spi_lcd_sys_monitor.py --status
+/usr/bin/python3 scripts/spi_lcd_sys_monitor.py --interval 1
+```
+
+If `python3-spidev` is installed but the monitor still reports a missing `spidev` module, check `sys.executable` and prefer `/usr/bin/python3` over a Conda/base interpreter.

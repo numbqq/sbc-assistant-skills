@@ -260,6 +260,83 @@ openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control age
 openclaw=restart OpenClaw gateway, then use the khadas-vim-5-hardware-control agent
 ```
 
+## Updating Installed Skills
+
+When a new version of this repository is released, update the installed skills
+by updating your local copy of this repository first, then running the same
+install command again. The installer replaces the target skill directory, so
+reinstalling the same skill is the supported update path.
+
+If you installed from a git checkout:
+
+```bash
+cd sbc-assistant-skills
+git pull
+./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
+```
+
+If you installed from a downloaded release archive, download and extract the new
+release, then run the installer from the extracted repository:
+
+```bash
+cd sbc-assistant-skills
+./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
+```
+
+Update all installed skills for one target:
+
+```bash
+./scripts/install.sh --tool codex
+./scripts/install.sh --tool claude-code
+./scripts/install.sh --tool gemini-cli
+./scripts/install.sh --tool hermes
+```
+
+Update all supported targets:
+
+```bash
+./scripts/convert.sh
+./scripts/install.sh --tool all
+```
+
+For OpenClaw, regenerate the converted agent workspace before installing:
+
+```bash
+./scripts/convert.sh --tool openclaw --skill khadas-vim-5-hardware-control
+./scripts/install.sh --tool openclaw --skill khadas-vim-5-hardware-control
+```
+
+For Gemini CLI extension artifacts under `integrations/`, regenerate before
+packaging or installing the converted extension:
+
+```bash
+./scripts/convert.sh --tool gemini-cli --skill khadas-vim-5-hardware-control
+./scripts/install.sh --tool gemini-cli --skill khadas-vim-5-hardware-control
+```
+
+After updating, restart the target AI tool if it is already running. For Gemini
+CLI, also run `/skills reload` and `/skills list` after restart if needed.
+
+## Uninstalling Skills
+
+There is no separate uninstall command. Remove the installed skill directory
+from the target tool's skills directory.
+
+Codex example:
+
+```bash
+rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/khadas-vim-5-hardware-control"
+```
+
+Other default install locations:
+
+```bash
+rm -rf "$HOME/.claude/skills/khadas-vim-5-hardware-control"
+rm -rf "$HOME/.gemini/skills/khadas-vim-5-hardware-control"
+rm -rf "$HOME/.hermes/skills/khadas-vim-5-hardware-control"
+rm -rf "$HOME/.openclaw/agency-agents/khadas-vim-5-hardware-control"
+```
+
 ## Adding Skills
 
 To add support for another SBC or feature area:

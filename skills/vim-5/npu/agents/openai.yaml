@@ -1,0 +1,4 @@
+interface:
+  display_name: "VIM 5 NPU"
+  short_description: "VIM 5 8T NPU helper with bundled YOLOv8n ADLA assets."
+  default_prompt: "Use $khadas-vim-5-npu to check the VIM 5 NPU environment or run a YOLOv8n ADLA demo with bundled sample assets or USB camera input."

@@ -42,14 +42,27 @@ skills/
 │       └── scripts/
 │           └── vim4_hw_minimal.sh
 └── vim-5/
-    └── hardware-control/
+    ├── hardware-control/
+    │   ├── SKILL.md
+    │   ├── agents/
+    │   │   └── openai.yaml
+    │   ├── references/
+    │   │   └── vim-5-minimal-hardware.md
+    │   └── scripts/
+    │       └── vim-5_hw_minimal.sh
+    └── npu/
         ├── SKILL.md
         ├── agents/
         │   └── openai.yaml
         ├── references/
-        │   └── vim-5-minimal-hardware.md
-        └── scripts/
-            └── vim-5_hw_minimal.sh
+        │   └── vim-5-npu-yolov8n.md
+        ├── scripts/
+        │   ├── vim-5_npu_status.py
+        │   ├── vim_5_yolov8n_core.py
+        │   ├── vim-5_yolov8n_image.py
+        │   └── vim-5_yolov8n_usb_camera.py
+        └── assets/
+            └── yolov8n/
 ```
 
 ## Skill Naming
@@ -147,6 +160,31 @@ Coverage:
 - IR on PIN39 after `ir`
 - Func key via Linux input device `/dev/input/event3` named `adc_keypad`
 
+### Khadas VIM 5 NPU
+
+Skill name:
+
+```text
+khadas-vim-5-npu
+```
+
+Location:
+
+```text
+skills/vim-5/npu/
+```
+
+Coverage:
+
+- VIM 5 integrated 8 TOPS NPU application workflows
+- Dedicated conda Python environment `amlnnlite_py310`
+- Common miniforge, miniconda, and anaconda conda executable auto-discovery
+- Bundled YOLOv8n `.adla` inference model and sample image
+- AMLNNLite runtime dependency checks for `amlnnlite`, `cv2`, and `numpy`
+- Bundled YOLOv8n ADLA image inference script
+- YOLOv8n USB camera inference with `/dev/video*` discovery
+- No hard-coded external reference-code paths
+
 ## Installation
 
 The installer discovers every `SKILL.md` under `skills/`. Choose a target with
@@ -202,6 +240,8 @@ Install a single skill:
 ./scripts/install.sh --tool codex --skill skills/vim4/hardware-control
 ./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
 ./scripts/install.sh --tool codex --skill skills/vim-5/hardware-control
+./scripts/install.sh --tool codex --skill khadas-vim-5-npu
+./scripts/install.sh --tool codex --skill skills/vim-5/npu
 ```
 
 Preview source and target paths without copying files:

@@ -59,8 +59,11 @@ skills/
         ├── scripts/
         │   ├── vim-5_npu_status.py
         │   ├── vim_5_yolov8n_core.py
+        │   ├── vim_5_yolov8n_video.py
+        │   ├── vim_5_yolov8n_spi_lcd.py
         │   ├── vim-5_yolov8n_image.py
-        │   └── vim-5_yolov8n_usb_camera.py
+        │   ├── vim-5_yolov8n_usb_camera.py
+        │   └── vim-5_yolov8n_usb_camera_spi_lcd.py
         └── assets/
             └── yolov8n/
 ```
@@ -183,6 +186,7 @@ Coverage:
 - AMLNNLite runtime dependency checks for `amlnnlite`, `cv2`, and `numpy`
 - Bundled YOLOv8n ADLA image inference script
 - YOLOv8n USB camera inference with `/dev/video*` discovery
+- YOLOv8n USB camera input with detection summaries rendered on the VIM 5 expansion-board SPI LCD
 - No hard-coded external reference-code paths
 
 ## Installation

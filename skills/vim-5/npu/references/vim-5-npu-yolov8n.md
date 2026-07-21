@@ -14,12 +14,15 @@ Executable entries use `vim-5`; the shared import module uses `vim_5`.
 
 ```text
 scripts/vim_5_yolov8n_core.py
+scripts/vim_5_yolov8n_video.py
+scripts/vim_5_yolov8n_spi_lcd.py
 scripts/vim-5_yolov8n_image.py
 scripts/vim-5_yolov8n_usb_camera.py
+scripts/vim-5_yolov8n_usb_camera_spi_lcd.py
 scripts/vim-5_npu_status.py
 ```
 
-The image and USB camera scripts contain the adapted YOLOv8n preprocessing, AMLNNLite inference, postprocessing, NMS, and drawing logic. They do not import or execute external reference scripts.
+The image, USB camera, and USB camera + SPI LCD scripts contain the adapted YOLOv8n preprocessing, AMLNNLite inference, postprocessing, NMS, and drawing logic. They do not import or execute external reference scripts. The SPI LCD application reuses the VIM 5 hardware-control skill's ST7735 helper for low-level display I/O.
 
 ## Bundled assets
 
@@ -54,6 +57,7 @@ conda run -n amlnnlite_py310 python -c 'import amlnnlite, cv2, numpy'
 ls -l /dev/adla*
 ls -d /sys/class/adla/adla*
 ls -l /dev/video*
+ls -l /dev/spidev1.0
 ```
 
 If non-interactive commands cannot find `conda`, use the executable detected by `scripts/vim-5_npu_status.py status` or pass `--conda /path/to/conda`.
@@ -103,10 +107,40 @@ conda run -n amlnnlite_py310 python scripts/vim-5_yolov8n_usb_camera.py \
   --output /tmp/yolov8n_npu.mp4
 ```
 
+## USB camera + SPI LCD summaries
+
+The input is a USB camera; the output summary is drawn to the VIM 5 expansion-board SPI LCD through `/dev/spidev1.0`.
+
+```bash
+conda run -n amlnnlite_py310 python scripts/vim-5_yolov8n_usb_camera_spi_lcd.py \
+  --model-path assets/yolov8n/model/yolov8n_rawhead_w8a8_a311y3.adla \
+  --camera /dev/video0 \
+  --width 640 \
+  --height 480 \
+  --fps 30 \
+  --fourcc MJPG \
+  --display off \
+  --lcd on
+```
+
+Headless bounded test:
+
+```bash
+conda run -n amlnnlite_py310 python scripts/vim-5_yolov8n_usb_camera_spi_lcd.py \
+  --model-path assets/yolov8n/model/yolov8n_rawhead_w8a8_a311y3.adla \
+  --camera /dev/video0 \
+  --display off \
+  --max-frames 30
+```
+
+The app imports `vim_5_yolov8n_core.py` for YOLO preprocessing/postprocessing, `vim_5_yolov8n_video.py` for OpenCV camera/preview/recording helpers, and `vim_5_yolov8n_spi_lcd.py` for detection-to-LCD rendering. The renderer loads `spi_lcd_st7735.py` from the sibling `skills/vim-5/hardware-control` tree or from the installed `khadas-vim-5-hardware-control` skill.
+
 ## Troubleshooting
 
 - `ModuleNotFoundError: amlnnlite`: activate `amlnnlite_py310` and install `amlnn_edge_toolkit_lite-*-linux_aarch64.whl`.
 - `ModuleNotFoundError: cv2`: install `opencv-python` in `amlnnlite_py310`.
+- `ModuleNotFoundError: spidev`: install `spidev` into the same Python environment as `amlnnlite`, for example `conda run -n amlnnlite_py310 pip install spidev`.
+- Missing `/dev/spidev1.0`: enable the `spi1-lcd` overlay and reboot.
 - `npu_runtime_probe=missing` while `/dev/adla0` exists: check device permissions, sandbox/device access, and whether another process owns the ADLA runtime.
 - `failed to open camera`: check `/dev/video*`, USB connection, camera permissions, and whether another process is using the camera.
 - OpenCV preview failure: use `--display off`, or set a working `QT_QPA_PLATFORM` such as `wayland` or `xcb`.

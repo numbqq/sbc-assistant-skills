@@ -24,8 +24,15 @@ BUNDLED_ADLA_MODEL = ASSET_ROOT / "yolov8n" / "model" / "yolov8n_rawhead_w8a8_a3
 BUNDLED_IMAGE_DIR = ASSET_ROOT / "yolov8n" / "input"
 BUNDLED_TEST_IMAGE = BUNDLED_IMAGE_DIR / "test_image.png"
 CORE_MODULE = SCRIPT_DIR / "vim_5_yolov8n_core.py"
+VIDEO_MODULE = SCRIPT_DIR / "vim_5_yolov8n_video.py"
+SPI_LCD_MODULE = SCRIPT_DIR / "vim_5_yolov8n_spi_lcd.py"
 IMAGE_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_image.py"
 USB_CAMERA_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera.py"
+USB_CAMERA_SPI_LCD_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera_spi_lcd.py"
+REPO_SPI_LCD_HELPER = SKILL_ROOT.parent / "hardware-control" / "scripts" / "spi_lcd_st7735.py"
+INSTALLED_SPI_LCD_HELPER = (
+    Path.home() / ".codex" / "skills" / "khadas-vim-5-hardware-control" / "scripts" / "spi_lcd_st7735.py"
+)
 
 COMMON_CONDA_PATHS = (
     Path.home() / "miniforge3" / "bin" / "conda",
@@ -183,6 +190,17 @@ def adla_sysfs_devices() -> list[str]:
     return sorted(glob.glob("/sys/class/adla/adla*"))
 
 
+def spi_lcd_helper_candidates() -> list[Path]:
+    return [REPO_SPI_LCD_HELPER, INSTALLED_SPI_LCD_HELPER]
+
+
+def ready_path(paths: list[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
 def requirement_files(setup_dir: Path) -> list[Path]:
     return sorted(setup_dir.rglob("requirements.txt")) if setup_dir.exists() else []
 
@@ -279,12 +297,65 @@ def cmd_usb(args: argparse.Namespace) -> str:
     return " ".join(parts)
 
 
+def cmd_usb_camera_spi_lcd(args: argparse.Namespace) -> str:
+    parts = [
+        target_python_text(args),
+        q(USB_CAMERA_SPI_LCD_SCRIPT),
+        "--model-path",
+        q(selected_model_path(args)),
+        "--camera",
+        q(args.camera),
+        "--width",
+        q(args.width),
+        "--height",
+        q(args.height),
+        "--fps",
+        q(args.fps),
+        "--fourcc",
+        q(args.fourcc),
+        "--conf",
+        q(args.conf),
+        "--nms",
+        q(args.nms),
+        "--display",
+        q(args.display),
+        "--lcd",
+        q(args.lcd),
+        "--lcd-max-items",
+        q(args.lcd_max_items),
+        "--lcd-refresh",
+        q(args.lcd_refresh),
+        "--spi",
+        q(args.spi),
+        "--reset-line",
+        q(args.reset_line),
+        "--dc-line",
+        q(args.dc_line),
+        "--gpio-mode",
+        q(args.gpio_mode),
+        "--speed-hz",
+        q(args.speed_hz),
+    ]
+    if args.max_frames > 0:
+        parts.extend(["--max-frames", q(args.max_frames)])
+    if args.output:
+        parts.extend(["--output", q(args.output)])
+    if args.perf_log_interval > 0:
+        parts.extend(["--perf-log-interval", q(args.perf_log_interval)])
+    if args.log:
+        parts.append("--log")
+    return " ".join(parts)
+
+
 def print_path_checks() -> None:
     checks = [
         path_check("skill_root", SKILL_ROOT),
         path_check("core_module", CORE_MODULE),
+        path_check("video_module", VIDEO_MODULE),
+        path_check("spi_lcd_module", SPI_LCD_MODULE),
         path_check("image_script", IMAGE_SCRIPT),
         path_check("usb_camera_script", USB_CAMERA_SCRIPT),
+        path_check("usb_camera_spi_lcd_script", USB_CAMERA_SPI_LCD_SCRIPT),
         path_check("bundled_adla_model", BUNDLED_ADLA_MODEL),
         path_check("bundled_image_dir", BUNDLED_IMAGE_DIR),
         path_check("bundled_test_image", BUNDLED_TEST_IMAGE),
@@ -305,9 +376,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     runtime_state = target_python_module_state(args, "amlnnlite")
     cv2_state = target_python_module_state(args, "cv2")
     numpy_state = target_python_module_state(args, "numpy")
+    spidev_state = target_python_module_state(args, "spidev")
+    gpiod_state = target_python_module_state(args, "gpiod")
     print("runtime_module_amlnnlite=" + runtime_state)
     print("module_cv2=" + cv2_state)
     print("module_numpy=" + numpy_state)
+    print("module_spidev=" + spidev_state)
+    print("module_gpiod=" + gpiod_state)
 
     print_path_checks()
     model_path = selected_model_path(args)
@@ -332,6 +407,17 @@ def cmd_status(args: argparse.Namespace) -> int:
     print("video_devices=" + (" ".join(devices) if devices else "none"))
     print("adla_device_nodes=" + (" ".join(adla_nodes) if adla_nodes else "none"))
     print("adla_sysfs_devices=" + (" ".join(adla_sysfs) if adla_sysfs else "none"))
+    spi_lcd_helpers = spi_lcd_helper_candidates()
+    spi_lcd_helper = ready_path(spi_lcd_helpers)
+    spi_node = Path(args.spi)
+    gpioset = shutil.which("gpioset")
+    print("spi_lcd_helper_candidates=" + joined_paths(spi_lcd_helpers))
+    print("spi_lcd_helper=" + (f"ready:{spi_lcd_helper}" if spi_lcd_helper else "missing"))
+    print(f"spi_device={args.spi}")
+    print(f"spi_device_node={'present' if spi_node.exists() else 'missing'}")
+    print(f"spi_lcd_reset_line={args.reset_line}")
+    print(f"spi_lcd_dc_line={args.dc_line}")
+    print("command_gpioset=" + (f"present:{gpioset}" if gpioset else "missing"))
 
     deps_ready = runtime_state == "present" and cv2_state == "present" and numpy_state == "present"
     npu_ready = probe_state == "present"
@@ -339,14 +425,42 @@ def cmd_status(args: argparse.Namespace) -> int:
     image_ready = bool(files)
     image_script_ready = IMAGE_SCRIPT.exists()
     usb_camera_script_ready = USB_CAMERA_SCRIPT.exists()
+    usb_camera_spi_lcd_script_ready = USB_CAMERA_SPI_LCD_SCRIPT.exists()
     camera_ready = bool(devices)
+    spi_lcd_ready = (
+        SPI_LCD_MODULE.exists()
+        and spi_lcd_helper is not None
+        and spi_node.exists()
+        and spidev_state == "present"
+        and (gpiod_state == "present" or gpioset is not None)
+    )
     print(f"yolov8n_image_ready={'yes' if deps_ready and npu_ready and model_ready and image_ready and image_script_ready else 'no'}")
     print(f"yolov8n_usb_camera_ready={'yes' if deps_ready and npu_ready and model_ready and usb_camera_script_ready and camera_ready else 'no'}")
+    print(
+        "yolov8n_usb_camera_spi_lcd_ready="
+        + (
+            "yes"
+            if deps_ready
+            and npu_ready
+            and model_ready
+            and camera_ready
+            and usb_camera_spi_lcd_script_ready
+            and spi_lcd_ready
+            else "no"
+        )
+    )
 
     if runtime_state.startswith("missing"):
         print(f"missing_runtime_note=create/activate conda env {args.conda_env} and install amlnn_edge_toolkit_lite wheel")
     if cv2_state.startswith("missing"):
         print(f"missing_cv2_note=install opencv-python inside conda env {args.conda_env}")
+    if spidev_state.startswith("missing"):
+        print(
+            f"missing_spidev_note=install spidev into the Python used for inference, for example: "
+            f"{conda_command(args)} run -n {args.conda_env} pip install spidev"
+        )
+    if gpiod_state.startswith("missing") and gpioset is None:
+        print("missing_gpio_note=install with: sudo apt install gpiod python3-libgpiod")
     if not model_ready:
         print(f"missing_model_note=expected bundled or user-provided ADLA model at {model_path}")
     if not npu_ready:
@@ -361,6 +475,14 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"missing_image_script_note=expected bundled image script at {IMAGE_SCRIPT}")
     if not usb_camera_script_ready:
         print(f"missing_usb_camera_script_note=expected bundled USB camera script at {USB_CAMERA_SCRIPT}")
+    if not usb_camera_spi_lcd_script_ready:
+        print(f"missing_usb_camera_spi_lcd_script_note=expected bundled USB camera + SPI LCD script at {USB_CAMERA_SPI_LCD_SCRIPT}")
+    if not SPI_LCD_MODULE.exists():
+        print(f"missing_spi_lcd_module_note=expected bundled SPI LCD renderer at {SPI_LCD_MODULE}")
+    if spi_lcd_helper is None:
+        print("missing_spi_lcd_helper_note=install or keep the VIM 5 hardware-control skill so spi_lcd_st7735.py is available")
+    if not spi_node.exists():
+        print("missing_spi_lcd_node_note=enable spi1-lcd in fdt_overlays and reboot so /dev/spidev1.0 is present")
     if not requirements:
         print("missing_requirements_note=no requirements.txt found under setup dir; pass --setup-dir or --requirements for the SDK/package directory")
     if not wheels:
@@ -377,6 +499,7 @@ def cmd_commands(args: argparse.Namespace) -> int:
     print("setup_commands_end")
     print("image_command=" + cmd_image(args))
     print("usb_camera_command=" + cmd_usb(args))
+    print("usb_camera_spi_lcd_command=" + cmd_usb_camera_spi_lcd(args))
     return 0
 
 
@@ -404,15 +527,28 @@ def add_image_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--perf-visualize", action="store_true")
 
 
-def add_usb_args(parser: argparse.ArgumentParser) -> None:
+def add_usb_args(parser: argparse.ArgumentParser, display_default: str = "auto") -> None:
     parser.add_argument("--camera", default="/dev/video0")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--fourcc", default="MJPG")
-    parser.add_argument("--display", choices=("auto", "on", "off"), default="auto")
+    parser.add_argument("--display", choices=("auto", "on", "off"), default=display_default)
     parser.add_argument("--max-frames", type=int, default=0)
     parser.add_argument("--output", default="")
+
+
+def add_spi_lcd_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--lcd", choices=("on", "off"), default="on")
+    parser.add_argument("--lcd-max-items", type=int, choices=range(1, 6), default=5, metavar="1-5")
+    parser.add_argument("--lcd-refresh", type=float, default=0.5)
+    parser.add_argument("--spi", default="/dev/spidev1.0")
+    parser.add_argument("--reset-line", default="GPIOD_5")
+    parser.add_argument("--dc-line", default="GPIOM_1")
+    parser.add_argument("--gpio-mode", choices=("auto", "gpiod", "gpioset"), default="auto")
+    parser.add_argument("--speed-hz", type=int, default=8_000_000)
+    parser.add_argument("--perf-log-interval", type=float, default=0.0)
+    parser.add_argument("--log", action="store_true")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -424,6 +560,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_setup_args(status)
     add_inference_args(status)
     add_image_args(status)
+    add_spi_lcd_args(status)
     status.set_defaults(func=cmd_status)
 
     setup = subparsers.add_parser("setup-commands", help="print conda setup commands for the VIM 5 NPU Python environment")
@@ -437,6 +574,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_inference_args(commands)
     add_image_args(commands)
     add_usb_args(commands)
+    add_spi_lcd_args(commands)
     commands.set_defaults(func=cmd_commands)
 
     image = subparsers.add_parser("image-command", help="print the bundled YOLOv8n image inference command")
@@ -450,6 +588,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_inference_args(usb)
     add_usb_args(usb)
     usb.set_defaults(func=lambda args: print(cmd_usb(args)) or 0)
+
+    usb_camera_spi_lcd = subparsers.add_parser(
+        "usb-camera-spi-lcd-command",
+        help="print the bundled YOLOv8n USB camera + SPI LCD command",
+    )
+    add_runtime_args(usb_camera_spi_lcd)
+    add_inference_args(usb_camera_spi_lcd)
+    add_usb_args(usb_camera_spi_lcd, display_default="off")
+    add_spi_lcd_args(usb_camera_spi_lcd)
+    usb_camera_spi_lcd.set_defaults(func=lambda args: print(cmd_usb_camera_spi_lcd(args)) or 0)
 
     return parser
 

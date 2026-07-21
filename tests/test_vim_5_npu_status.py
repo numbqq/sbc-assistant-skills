@@ -55,6 +55,48 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("--display off", command)
         self.assertIn("--max-frames 5", command)
 
+    def test_usb_camera_spi_lcd_command_names_camera_and_spi_lcd_explicitly(self):
+        args = vim_5_npu_status.build_parser().parse_args(
+            [
+                "usb-camera-spi-lcd-command",
+                "--conda",
+                "conda",
+                "--camera",
+                "/dev/video2",
+                "--width",
+                "1280",
+                "--height",
+                "720",
+                "--display",
+                "off",
+                "--max-frames",
+                "5",
+                "--lcd-max-items",
+                "3",
+                "--lcd-refresh",
+                "0.25",
+                "--spi",
+                "/dev/spidev1.0",
+            ]
+        )
+
+        command = vim_5_npu_status.cmd_usb_camera_spi_lcd(args)
+
+        self.assertNotIn("usb" "_lcd", command)
+        self.assertNotIn("npu_applications", command)
+        self.assertIn("conda run -n amlnnlite_py310 python", command)
+        self.assertIn(str(vim_5_npu_status.USB_CAMERA_SPI_LCD_SCRIPT), command)
+        self.assertIn(f"--model-path {vim_5_npu_status.BUNDLED_ADLA_MODEL}", command)
+        self.assertIn("--camera /dev/video2", command)
+        self.assertIn("--width 1280", command)
+        self.assertIn("--height 720", command)
+        self.assertIn("--display off", command)
+        self.assertIn("--max-frames 5", command)
+        self.assertIn("--lcd on", command)
+        self.assertIn("--lcd-max-items 3", command)
+        self.assertIn("--lcd-refresh 0.25", command)
+        self.assertIn("--spi /dev/spidev1.0", command)
+
     def test_image_command_uses_bundled_script_assets_and_output_dir(self):
         args = vim_5_npu_status.build_parser().parse_args(
             ["image-command", "--conda", "conda", "--output-dir", "/tmp/out"]
@@ -116,6 +158,8 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("runtime_module_amlnnlite=missing", text)
         self.assertIn(f"image_script=ready:{vim_5_npu_status.IMAGE_SCRIPT}", text)
         self.assertIn(f"usb_camera_script=ready:{vim_5_npu_status.USB_CAMERA_SCRIPT}", text)
+        self.assertIn(f"usb_camera_spi_lcd_script=ready:{vim_5_npu_status.USB_CAMERA_SPI_LCD_SCRIPT}", text)
+        self.assertIn(f"spi_lcd_module=ready:{vim_5_npu_status.SPI_LCD_MODULE}", text)
         self.assertIn(f"bundled_adla_model=ready:{vim_5_npu_status.BUNDLED_ADLA_MODEL}", text)
         self.assertIn(f"selected_model_path={vim_5_npu_status.BUNDLED_ADLA_MODEL}", text)
         self.assertIn("npu_runtime_probe=missing:adla device not found", text)
@@ -125,6 +169,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("missing_runtime_note=create/activate conda env amlnnlite_py310", text)
         self.assertIn("missing_npu_runtime_note=AMLNNLite could not initialize", text)
         self.assertIn("missing_camera_note=no /dev/video* devices found", text)
+        self.assertIn("yolov8n_usb_camera_spi_lcd_ready=no", text)
 
     def test_setup_commands_match_amlnnlite_py310_install_flow(self):
         args = vim_5_npu_status.build_parser().parse_args(

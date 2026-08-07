@@ -162,7 +162,7 @@ Coverage:
 - SPDIF on PIN13 after `spdifout`
 - IR on PIN39 after `ir`
 - Func key via Linux input device `/dev/input/event3` named `adc_keypad`
-- G-sensor via Linux input device `/dev/input/event0` named `kxtj3_accel`
+- G-sensor via Linux input device `/dev/input/event0` named `kxtj3_accel`; measured orientation is `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`
 
 ### Khadas VIM 5 NPU
 

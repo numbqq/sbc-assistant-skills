@@ -20,7 +20,7 @@ Supported only:
 - OLED over I2C via the bundled SSD1306 helper
 - UART via Linux `/dev/ttyS4` and Python `termios`
 - board Func key via Linux input device `/dev/input/event3` named `adc_keypad`
-- onboard G-sensor / accelerometer via Linux input device `/dev/input/event0` named `kxtj3_accel`
+- onboard G-sensor / accelerometer via Linux input device `/dev/input/event0` named `kxtj3_accel`, with measured VIM 5 orientation `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`
 - VIM 5 expansion-board green LED via `/sys/class/leds/green_led`
 - VIM 5 expansion-board analog MIC via `ext-board-codec`, ALSA route setup, and `arecord` on `hw:0,1`
 - VIM 5 Mic Array recording via `arecord` on `hw:0,3`
@@ -49,7 +49,7 @@ For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exist
 - Fan is controlled by MCU through `/usr/local/bin/fan.sh`
 - LED sysfs node is `/sys/class/leds/pwmled`
 - Board Func key is read-only through Linux input device `/dev/input/event3`, which should report device name `adc_keypad`
-- Onboard G-sensor is read-only through Linux input device `/dev/input/event0`, which should report device name `kxtj3_accel`; read raw `EV_ABS` `ABS_X`, `ABS_Y`, and `ABS_Z` values
+- Onboard G-sensor is read-only through Linux input device `/dev/input/event0`, which should report device name `kxtj3_accel`; read raw `EV_ABS` `ABS_X`, `ABS_Y`, and `ABS_Z` values. For the VIM 5 top-view orientation with USB-A at the top edge, HDMI IN at the bottom edge, and the G-sensor near the left edge: `+X` points toward the USB-A edge, `-X` points toward the HDMI IN edge, `+Y` points toward the left/G-sensor edge, `-Y` points toward the right/USB-A 2.0 edge, `+Z` points out of the component side, and `-Z` points through the board back side.
 - Expansion-board green LED sysfs node is `/sys/class/leds/green_led`
 - Expansion-board analog MIC requires the board to be attached and `fdt_overlays=ext-board-codec`; configure capture path with `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`, then record from `hw:0,1`
 - Mic Array recording uses `arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6`
@@ -93,7 +93,7 @@ Before generating commands that write hardware state:
 11. For UART, check `/dev/ttyS4` before serial reads/writes.
 12. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
 13. For the board Func key, read only `/dev/input/event3`; do not treat it as a GPIO, PWM, or raw ADC input.
-14. For the onboard G-sensor, read only `/dev/input/event0` as `kxtj3_accel`; do not treat it as GPIO/I2C/SPI, and do not convert raw `ABS_X/ABS_Y/ABS_Z` values to g units unless the target image's scale is known.
+14. For the onboard G-sensor, read only `/dev/input/event0` as `kxtj3_accel`; do not treat it as GPIO/I2C/SPI, and do not convert raw `ABS_X/ABS_Y/ABS_Z` values to g units unless the target image's scale is known. Preserve the measured axis orientation when generating app logic: `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`, `-Z=board back side`.
 15. For expansion-board analog MIC, remind users that the expansion board must be connected and `ext-board-codec` must be active after reboot before ALSA capture from `hw:0,1` works.
 16. For expansion-board SPI OLED/LCD, check `/dev/spidev1.0` before display transfers and use the bundled `scripts/spi_lcd_st7735.py` helper for ST7735-compatible panels.
 17. Avoid combining `ext-board-codec`, `spi1-lcd`, I2S, or SPI overlays that claim the same shared pins unless the user provides a confirmed mux configuration.
@@ -401,6 +401,34 @@ scripts/gsensor_input.py sample --json
 ```
 
 Keep G-sensor examples read-only, use `/dev/input/event0`, verify the input device name is `kxtj3_accel`, and report raw `EV_ABS` axis values from `ABS_X`, `ABS_Y`, and `ABS_Z`. If reading the device returns permission denied, suggest `sudo` or membership in the Linux `input` group. Do not convert raw values to physical g units unless the target image's input-event scale is known.
+
+Measured VIM 5 axis orientation for top view with the USB-A connectors on the top edge, HDMI IN on the bottom edge, and the G-sensor near the left edge:
+
+```text
++X: USB-A connector edge
+-X: HDMI IN edge
++Y: left edge / G-sensor edge
+-Y: right edge / USB-A 2.0 side edge
++Z: component side up
+-Z: board back side
+```
+
+Machine-readable orientation fields emitted by `scripts/gsensor_input.py status` and `scripts/vim-5_hw_minimal.sh gsensor status`:
+
+```text
+axis_orientation_reference=top_view_USB-A_edge_at_top_HDMI_IN_edge_at_bottom_Gsensor_near_left_edge
+axis_x_positive=USB-A_edge
+axis_x_negative=HDMI_IN_edge
+axis_y_positive=left_Gsensor_edge
+axis_y_negative=right_USB-A_2_0_edge
+axis_z_positive=component_side_up
+axis_z_negative=board_back_side
+```
+
+Empirical checks used for this mapping:
+- Horizontal board: `Z` is dominant positive, about one raw gravity vector.
+- Left/G-sensor edge raised: `Y` increases positive.
+- USB-A edge raised: `X` increases positive.
 
 ## VIM 5 expansion board
 

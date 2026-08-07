@@ -10,7 +10,7 @@
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
 - UART: Linux `/dev/ttyS4` plus Python `termios` helper
 - Func key: Linux input `/dev/input/event3` with device name `adc_keypad`
-- G-sensor / accelerometer: Linux input `/dev/input/event0` with device name `kxtj3_accel`
+- G-sensor / accelerometer: Linux input `/dev/input/event0` with device name `kxtj3_accel`; measured VIM 5 orientation is `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`
 - LED: `/sys/class/leds/pwmled`
 - FAN: `/usr/local/bin/fan.sh`
 - Expansion-board green LED: `/sys/class/leds/green_led`
@@ -406,6 +406,31 @@ The onboard VIM 5 G-sensor / accelerometer is exposed as a Linux input event dev
 ```
 
 The expected device name is `kxtj3_accel`. Treat this as read-only input, not as GPIO, I2C, or SPI. The helper reports raw input-event values for `EV_ABS` axis codes `ABS_X`, `ABS_Y`, and `ABS_Z`; do not convert them to g units unless the target image's scale is known.
+
+Measured VIM 5 axis orientation for top view with the USB-A connectors on the top edge, HDMI IN on the bottom edge, and the G-sensor near the left edge:
+
+| Axis | Positive direction | Negative direction |
+| --- | --- | --- |
+| X | USB-A connector edge | HDMI IN edge |
+| Y | Left edge / G-sensor edge | Right edge / USB-A 2.0 side edge |
+| Z | Component side up | Board back side |
+
+Machine-readable status fields:
+
+```text
+axis_orientation_reference=top_view_USB-A_edge_at_top_HDMI_IN_edge_at_bottom_Gsensor_near_left_edge
+axis_x_positive=USB-A_edge
+axis_x_negative=HDMI_IN_edge
+axis_y_positive=left_Gsensor_edge
+axis_y_negative=right_USB-A_2_0_edge
+axis_z_positive=component_side_up
+axis_z_negative=board_back_side
+```
+
+Empirical checks used for this mapping:
+- Horizontal board: `Z` is dominant positive, about one raw gravity vector.
+- Left/G-sensor edge raised: `Y` increases positive.
+- USB-A edge raised: `X` increases positive.
 
 Useful checks:
 

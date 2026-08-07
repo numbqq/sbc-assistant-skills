@@ -512,6 +512,13 @@ gsensor_status() {
   echo "device=$GSENSOR_DEVICE"
   echo "expected_name=$GSENSOR_NAME"
   echo "axis_codes=x:ABS_X(0),y:ABS_Y(1),z:ABS_Z(2)"
+  echo "axis_orientation_reference=top_view_USB-A_edge_at_top_HDMI_IN_edge_at_bottom_Gsensor_near_left_edge"
+  echo "axis_x_positive=USB-A_edge"
+  echo "axis_x_negative=HDMI_IN_edge"
+  echo "axis_y_positive=left_Gsensor_edge"
+  echo "axis_y_negative=right_USB-A_2_0_edge"
+  echo "axis_z_positive=component_side_up"
+  echo "axis_z_negative=board_back_side"
   echo "units=raw input-event values"
   if [ -e "$GSENSOR_DEVICE" ]; then
     echo "device_node=present:$GSENSOR_DEVICE"

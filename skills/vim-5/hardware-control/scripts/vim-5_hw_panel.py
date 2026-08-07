@@ -25,6 +25,11 @@ FUNC_KEY_DEVICE = Path("/dev/input/event3")
 FUNC_KEY_NAME = "adc_keypad"
 GSENSOR_DEVICE = Path("/dev/input/event0")
 GSENSOR_NAME = "kxtj3_accel"
+GSENSOR_AXIS_ORIENTATION = (
+    "+X=USB-A edge; -X=HDMI IN edge; "
+    "+Y=left/Gsensor edge; -Y=right/USB-A 2.0 edge; "
+    "+Z=component side up; -Z=board back side"
+)
 OVERLAY_CONFIG = "/boot/dtb/amlogic/kvim-5.dtb.overlay.env"
 OVERLAY_DIR = "/boot/dtb/amlogic/kvim-5.dtb.overlays"
 EXT_BOARD_CODEC_OVERLAY = "ext-board-codec"
@@ -454,7 +459,11 @@ def gsensor_status(device: Path = GSENSOR_DEVICE) -> StatusItem:
     finally:
         os.close(fd)
     if name == GSENSOR_NAME:
-        return StatusItem("G-sensor", "ready", f"{device} name={name}; raw ABS_X/ABS_Y/ABS_Z values")
+        return StatusItem(
+            "G-sensor",
+            "ready",
+            f"{device} name={name}; raw ABS_X/ABS_Y/ABS_Z values; {GSENSOR_AXIS_ORIENTATION}",
+        )
     return StatusItem("G-sensor", "missing", f"{device} name={name or 'unknown'}, expected {GSENSOR_NAME}")
 
 

@@ -103,6 +103,9 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
     def test_gsensor_uses_vim_5_event0(self):
         self.assertEqual(vim_5_hw_panel.GSENSOR_DEVICE, Path("/dev/input/event0"))
         self.assertEqual(vim_5_hw_panel.GSENSOR_NAME, "kxtj3_accel")
+        self.assertIn("+X=USB-A edge", vim_5_hw_panel.GSENSOR_AXIS_ORIENTATION)
+        self.assertIn("+Y=left/Gsensor edge", vim_5_hw_panel.GSENSOR_AXIS_ORIENTATION)
+        self.assertIn("+Z=component side up", vim_5_hw_panel.GSENSOR_AXIS_ORIENTATION)
 
     def test_gsensor_status_missing_does_not_raise(self):
         with tempfile.TemporaryDirectory() as tmp:

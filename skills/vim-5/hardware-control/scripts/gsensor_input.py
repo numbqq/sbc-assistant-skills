@@ -28,6 +28,12 @@ AXIS_NAMES = {
     ABS_Y: "y",
     ABS_Z: "z",
 }
+AXIS_ORIENTATION = {
+    "x": {"positive": "USB-A_edge", "negative": "HDMI_IN_edge"},
+    "y": {"positive": "left_Gsensor_edge", "negative": "right_USB-A_2_0_edge"},
+    "z": {"positive": "component_side_up", "negative": "board_back_side"},
+}
+AXIS_ORIENTATION_REFERENCE = "top_view_USB-A_edge_at_top_HDMI_IN_edge_at_bottom_Gsensor_near_left_edge"
 INPUT_EVENT_FORMAT = "llHHi"
 INPUT_EVENT_SIZE = struct.calcsize(INPUT_EVENT_FORMAT)
 
@@ -77,11 +83,20 @@ def open_gsensor_device(device: Path) -> int:
     return os.open(device, os.O_RDONLY | os.O_NONBLOCK)
 
 
+def print_axis_orientation() -> None:
+    print(f"axis_orientation_reference={AXIS_ORIENTATION_REFERENCE}")
+    for axis in ("x", "y", "z"):
+        orientation = AXIS_ORIENTATION[axis]
+        print(f"axis_{axis}_positive={orientation['positive']}")
+        print(f"axis_{axis}_negative={orientation['negative']}")
+
+
 def print_status(device: Path, expected_name: str) -> int:
     print(f"accelerometer=G-sensor")
     print(f"device={device}")
     print(f"expected_name={expected_name}")
     print("axis_codes=x:ABS_X(0),y:ABS_Y(1),z:ABS_Z(2)")
+    print_axis_orientation()
     print("units=raw input-event values")
 
     if not device.exists():

@@ -81,6 +81,14 @@ class GsensorInputTest(unittest.TestCase):
         self.assertIn("z=1024", text)
         self.assertIn("units=raw", text)
 
+    def test_axis_orientation_is_machine_readable(self):
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["x"]["positive"], "USB-A_edge")
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["x"]["negative"], "HDMI_IN_edge")
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["y"]["positive"], "left_Gsensor_edge")
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["y"]["negative"], "right_USB-A_2_0_edge")
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["z"]["positive"], "component_side_up")
+        self.assertEqual(gsensor_input.AXIS_ORIENTATION["z"]["negative"], "board_back_side")
+
     def test_main_returns_130_without_traceback_on_keyboard_interrupt(self):
         with mock.patch.object(gsensor_input, "listen_for_samples", side_effect=KeyboardInterrupt):
             stderr = io.StringIO()

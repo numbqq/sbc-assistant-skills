@@ -162,6 +162,7 @@ Coverage:
 - SPDIF on PIN13 after `spdifout`
 - IR on PIN39 after `ir`
 - Func key via Linux input device `/dev/input/event3` named `adc_keypad`
+- G-sensor via Linux input device `/dev/input/event0` named `kxtj3_accel`
 
 ### Khadas VIM 5 NPU
 

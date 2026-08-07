@@ -1,6 +1,6 @@
 ---
 name: khadas-vim-5-hardware-control
-description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED/LCD, UART, Func key, fan, expansion-board green LED, analog MIC, Mic Array, or three-wire SPI display control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, board LED control uses /sys/class/leds/pwmled, expansion-board green LED uses /sys/class/leds/green_led, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or wiringpi gpio aread 19/20, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 or spi1-lcd overlay, analog MIC uses ext-board-codec plus ALSA hw:0,1, Mic Array records from hw:0,3, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, and the board Func key uses /dev/input/event3 with device name adc_keypad.
+description: minimal hardware control helper for Khadas VIM 5 running Ubuntu 24.04. use when asked to generate, review, or debug Python or Bash scripts for LED, ADC, GPIO, PWM, I2C, SPI, OLED/LCD, UART, Func key, G-sensor, accelerometer, fan, expansion-board green LED, analog MIC, Mic Array, or three-wire SPI display control on VIM 5. assumes fan control uses /usr/local/bin/fan.sh, board LED control uses /sys/class/leds/pwmled, expansion-board green LED uses /sys/class/leds/green_led, ADC uses /sys/bus/iio/devices/iio:device0/in_voltage*_input or wiringpi gpio aread 19/20, GPIO and PWM use wiringpi tools, I2C uses Linux /dev/i2c-* with Python ioctl helpers after checking /dev/i2c-3 or /dev/i2c-6 exists, SPI1 uses /dev/spidev1.0 after enabling the spi1 or spi1-lcd overlay, analog MIC uses ext-board-codec plus ALSA hw:0,1, Mic Array records from hw:0,3, UART uses /dev/ttyS4 after enabling the uart_ao_e overlay, the board Func key uses /dev/input/event3 with device name adc_keypad, and the onboard G-sensor uses /dev/input/event0 with device name kxtj3_accel.
 ---
 
 # VIM 5 Hardware Control
@@ -20,6 +20,7 @@ Supported only:
 - OLED over I2C via the bundled SSD1306 helper
 - UART via Linux `/dev/ttyS4` and Python `termios`
 - board Func key via Linux input device `/dev/input/event3` named `adc_keypad`
+- onboard G-sensor / accelerometer via Linux input device `/dev/input/event0` named `kxtj3_accel`
 - VIM 5 expansion-board green LED via `/sys/class/leds/green_led`
 - VIM 5 expansion-board analog MIC via `ext-board-codec`, ALSA route setup, and `arecord` on `hw:0,1`
 - VIM 5 Mic Array recording via `arecord` on `hw:0,3`
@@ -48,6 +49,7 @@ For VIM 5 40-pin I2C, SPI, or UART, check whether the matching device node exist
 - Fan is controlled by MCU through `/usr/local/bin/fan.sh`
 - LED sysfs node is `/sys/class/leds/pwmled`
 - Board Func key is read-only through Linux input device `/dev/input/event3`, which should report device name `adc_keypad`
+- Onboard G-sensor is read-only through Linux input device `/dev/input/event0`, which should report device name `kxtj3_accel`; read raw `EV_ABS` `ABS_X`, `ABS_Y`, and `ABS_Z` values
 - Expansion-board green LED sysfs node is `/sys/class/leds/green_led`
 - Expansion-board analog MIC requires the board to be attached and `fdt_overlays=ext-board-codec`; configure capture path with `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`, then record from `hw:0,1`
 - Mic Array recording uses `arecord -Dhw:0,3 -r 48000 -f S16_LE -c 6`
@@ -67,7 +69,7 @@ Before running generated or bundled programs on a VIM 5 target:
 Common dependency mapping:
 - GPIO/PWM and wiringpi ADC reads require the `gpio` command from the Khadas/wiringpi package. If missing, tell the user to install the VIM 5 image's wiringpi package first; on images that provide an apt package, try `sudo apt install wiringpi`.
 - I2C bus discovery with `i2cdetect` requires `i2c-tools`: `sudo apt install i2c-tools`.
-- I2C, SSD1306 OLED, SPI transfer, UART, and Func key bundled Python helpers require `python3` only and use the Python standard library by default.
+- I2C, SSD1306 OLED, SPI transfer, UART, Func key, and G-sensor bundled Python helpers require `python3` only and use the Python standard library by default.
 - Do not require `smbus2`, `spidev`, or `pyserial` for the bundled I2C, SPI transfer, or UART helpers unless the user explicitly requests those APIs.
 - Expansion-board analog MIC and Mic Array commands require `amixer` and `arecord` from `alsa-utils`: `sudo apt install alsa-utils`.
 - Expansion-board three-wire SPI OLED/LCD requires `python3-spidev` and `gpiod`; `python3-libgpiod` is optional when `gpioset` from `gpiod` is available. Use `sudo apt install python3-spidev gpiod python3-libgpiod` only when the package is not installed.
@@ -91,14 +93,15 @@ Before generating commands that write hardware state:
 11. For UART, check `/dev/ttyS4` before serial reads/writes.
 12. Remind users to cross-connect UART TX/RX, share GND, and use 3.3V TTL levels rather than RS-232 voltage levels.
 13. For the board Func key, read only `/dev/input/event3`; do not treat it as a GPIO, PWM, or raw ADC input.
-14. For expansion-board analog MIC, remind users that the expansion board must be connected and `ext-board-codec` must be active after reboot before ALSA capture from `hw:0,1` works.
-15. For expansion-board SPI OLED/LCD, check `/dev/spidev1.0` before display transfers and use the bundled `scripts/spi_lcd_st7735.py` helper for ST7735-compatible panels.
-16. Avoid combining `ext-board-codec`, `spi1-lcd`, I2S, or SPI overlays that claim the same shared pins unless the user provides a confirmed mux configuration.
-17. Do dependency preflight checks before hardware writes or long-running reads; missing runtime packages should be installed or explicitly acknowledged before running the program.
+14. For the onboard G-sensor, read only `/dev/input/event0` as `kxtj3_accel`; do not treat it as GPIO/I2C/SPI, and do not convert raw `ABS_X/ABS_Y/ABS_Z` values to g units unless the target image's scale is known.
+15. For expansion-board analog MIC, remind users that the expansion board must be connected and `ext-board-codec` must be active after reboot before ALSA capture from `hw:0,1` works.
+16. For expansion-board SPI OLED/LCD, check `/dev/spidev1.0` before display transfers and use the bundled `scripts/spi_lcd_st7735.py` helper for ST7735-compatible panels.
+17. Avoid combining `ext-board-codec`, `spi1-lcd`, I2S, or SPI overlays that claim the same shared pins unless the user provides a confirmed mux configuration.
+18. Do dependency preflight checks before hardware writes or long-running reads; missing runtime packages should be installed or explicitly acknowledged before running the program.
 
 ## Workflow
 
-1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, Func key, or expansion-board device.
+1. Identify the requested hardware block: LED, FAN, ADC, GPIO, PWM, I2C, SPI, UART, Func key, G-sensor, or expansion-board device.
 2. Identify runtime dependencies and device-node or overlay readiness for that block.
 3. Generate the smallest working Bash or Python script with a minimal dependency preflight when the script uses external commands or optional Python modules.
 4. Include a read/check command when possible.
@@ -364,6 +367,40 @@ scripts/key_input.py listen
 ```
 
 Only support the board Func key for this skill. Keep examples read-only, use `/dev/input/event3`, and report press, release, or repeat events from EV_KEY input events. If reading the device returns permission denied, suggest `sudo` or membership in the Linux `input` group.
+
+## G-sensor through Linux input
+
+The onboard VIM 5 G-sensor / accelerometer is exposed by Linux input as:
+
+```bash
+/dev/input/event0
+```
+
+The expected device name is:
+
+```text
+kxtj3_accel
+```
+
+Useful checks:
+
+```bash
+scripts/vim-5_hw_minimal.sh gsensor status
+scripts/vim-5_hw_minimal.sh gsensor sample 5
+scripts/vim-5_hw_minimal.sh gsensor listen
+scripts/vim-5_hw_minimal.sh gsensor listen 10
+```
+
+Bundled helper:
+
+```bash
+scripts/gsensor_input.py status
+scripts/gsensor_input.py sample --timeout 5
+scripts/gsensor_input.py listen --count 10
+scripts/gsensor_input.py sample --json
+```
+
+Keep G-sensor examples read-only, use `/dev/input/event0`, verify the input device name is `kxtj3_accel`, and report raw `EV_ABS` axis values from `ABS_X`, `ABS_Y`, and `ABS_Z`. If reading the device returns permission denied, suggest `sudo` or membership in the Linux `input` group. Do not convert raw values to physical g units unless the target image's input-event scale is known.
 
 ## VIM 5 expansion board
 

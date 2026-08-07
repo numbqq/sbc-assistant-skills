@@ -100,6 +100,17 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
         self.assertEqual(vim_5_hw_panel.FUNC_KEY_DEVICE, Path("/dev/input/event3"))
         self.assertEqual(vim_5_hw_panel.FUNC_KEY_NAME, "adc_keypad")
 
+    def test_gsensor_uses_vim_5_event0(self):
+        self.assertEqual(vim_5_hw_panel.GSENSOR_DEVICE, Path("/dev/input/event0"))
+        self.assertEqual(vim_5_hw_panel.GSENSOR_NAME, "kxtj3_accel")
+
+    def test_gsensor_status_missing_does_not_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            status = vim_5_hw_panel.gsensor_status(device=Path(tmp) / "event0")
+
+        self.assertEqual(status.state, "missing")
+        self.assertIn("kxtj3_accel", status.detail)
+
     def test_expansion_board_constants_use_vim_5_paths(self):
         self.assertEqual(vim_5_hw_panel.EXPANSION_GREEN_LED_PATH, Path("/sys/class/leds/green_led"))
         self.assertEqual(vim_5_hw_panel.EXT_BOARD_CODEC_OVERLAY, "ext-board-codec")
@@ -139,6 +150,10 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
     def test_main_menu_exposes_expansion_board_status(self):
         self.assertIn("[9] Expansion Board Status", vim_5_hw_panel.render_main_menu())
         self.assertIn("Expansion Board Status", vim_5_hw_panel.render_page("9"))
+
+    def test_main_menu_exposes_gsensor_status(self):
+        self.assertIn("[10] G-Sensor Status", vim_5_hw_panel.render_main_menu())
+        self.assertIn("G-Sensor Status", vim_5_hw_panel.render_page("10"))
 
     def test_oled_summary_uses_adc0_and_adc1_labels(self):
         text = vim_5_hw_panel.oled_summary_text(

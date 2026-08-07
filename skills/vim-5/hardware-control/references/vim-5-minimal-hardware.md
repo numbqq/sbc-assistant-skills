@@ -10,6 +10,7 @@
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
 - UART: Linux `/dev/ttyS4` plus Python `termios` helper
 - Func key: Linux input `/dev/input/event3` with device name `adc_keypad`
+- G-sensor / accelerometer: Linux input `/dev/input/event0` with device name `kxtj3_accel`
 - LED: `/sys/class/leds/pwmled`
 - FAN: `/usr/local/bin/fan.sh`
 - Expansion-board green LED: `/sys/class/leds/green_led`
@@ -50,7 +51,7 @@ For GPIO/PWM and wiringpi ADC reads, install the VIM 5 image's Khadas/wiringpi p
 sudo apt install wiringpi
 ```
 
-Bundled I2C, SSD1306 OLED, SPI transfer, UART, and Func key Python helpers use the Python standard library by default. Do not install `smbus2`, external `spidev`, or `pyserial` for those helpers unless the task explicitly requests those APIs. The expansion-board ST7735 SPI LCD helper is the exception: it requires `python3-spidev` and needs either `gpioset` from `gpiod` or the Python `gpiod` module.
+Bundled I2C, SSD1306 OLED, SPI transfer, UART, Func key, and G-sensor Python helpers use the Python standard library by default. Do not install `smbus2`, external `spidev`, or `pyserial` for those helpers unless the task explicitly requests those APIs. The expansion-board ST7735 SPI LCD helper is the exception: it requires `python3-spidev` and needs either `gpioset` from `gpiod` or the Python `gpiod` module.
 
 If `python3-spidev` is installed but the script still reports `missing python spidev module`, check the active interpreter:
 
@@ -395,6 +396,36 @@ python3 scripts/key_input.py listen
 ```
 
 If reading `/dev/input/event3` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.
+
+## G-sensor commands
+
+The onboard VIM 5 G-sensor / accelerometer is exposed as a Linux input event device:
+
+```bash
+/dev/input/event0
+```
+
+The expected device name is `kxtj3_accel`. Treat this as read-only input, not as GPIO, I2C, or SPI. The helper reports raw input-event values for `EV_ABS` axis codes `ABS_X`, `ABS_Y`, and `ABS_Z`; do not convert them to g units unless the target image's scale is known.
+
+Useful checks:
+
+```bash
+scripts/vim-5_hw_minimal.sh gsensor status
+scripts/vim-5_hw_minimal.sh gsensor sample 5
+scripts/vim-5_hw_minimal.sh gsensor listen
+scripts/vim-5_hw_minimal.sh gsensor listen 10
+```
+
+For direct Python access, use the bundled helper. It uses only the Python standard library:
+
+```bash
+python3 scripts/gsensor_input.py status
+python3 scripts/gsensor_input.py sample --timeout 5
+python3 scripts/gsensor_input.py listen --count 10
+python3 scripts/gsensor_input.py sample --json
+```
+
+If reading `/dev/input/event0` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.
 
 ## Expansion-board commands
 

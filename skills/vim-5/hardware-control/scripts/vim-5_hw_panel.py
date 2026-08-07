@@ -23,6 +23,8 @@ SPI_DEVICE = Path("/dev/spidev1.0")
 UART_DEVICE = Path("/dev/ttyS4")
 FUNC_KEY_DEVICE = Path("/dev/input/event3")
 FUNC_KEY_NAME = "adc_keypad"
+GSENSOR_DEVICE = Path("/dev/input/event0")
+GSENSOR_NAME = "kxtj3_accel"
 OVERLAY_CONFIG = "/boot/dtb/amlogic/kvim-5.dtb.overlay.env"
 OVERLAY_DIR = "/boot/dtb/amlogic/kvim-5.dtb.overlays"
 EXT_BOARD_CODEC_OVERLAY = "ext-board-codec"
@@ -195,6 +197,7 @@ def board_status_items() -> list[StatusItem]:
         spi_status(),
         uart_status(),
         func_key_status(),
+        gsensor_status(),
     ]
 
 
@@ -427,6 +430,38 @@ def render_func_key_status() -> str:
     return render_status_items("Func Key Status", [func_key_status()])
 
 
+def gsensor_status(device: Path = GSENSOR_DEVICE) -> StatusItem:
+    if not device.exists():
+        return StatusItem("G-sensor", "missing", f"missing {device}; expected {GSENSOR_NAME}")
+    try:
+        fd = os.open(device, os.O_RDONLY | os.O_NONBLOCK)
+    except PermissionError:
+        return StatusItem(
+            "G-sensor",
+            "permission denied",
+            f"permission denied reading {device}; try sudo or add the user to the input group",
+        )
+    except OSError as exc:
+        return StatusItem("G-sensor", "missing", f"cannot open {device}: {exc}; expected {GSENSOR_NAME}")
+    try:
+        name = input_device_name(fd)
+    except OSError as exc:
+        return StatusItem(
+            "G-sensor",
+            "missing",
+            f"cannot read input name from {device}: {exc}; expected {GSENSOR_NAME}",
+        )
+    finally:
+        os.close(fd)
+    if name == GSENSOR_NAME:
+        return StatusItem("G-sensor", "ready", f"{device} name={name}; raw ABS_X/ABS_Y/ABS_Z values")
+    return StatusItem("G-sensor", "missing", f"{device} name={name or 'unknown'}, expected {GSENSOR_NAME}")
+
+
+def render_gsensor_status() -> str:
+    return render_status_items("G-Sensor Status", [gsensor_status()])
+
+
 def render_main_menu() -> str:
     return """VIM 5 Hardware Panel
 
@@ -439,6 +474,7 @@ def render_main_menu() -> str:
 [7] OLED Status Display
 [8] Func Key Status
 [9] Expansion Board Status
+[10] G-Sensor Status
 [q] Quit
 """
 
@@ -665,6 +701,7 @@ def render_page(selection: str, args: argparse.Namespace | None = None) -> str:
         "7": oled_page,
         "8": render_func_key_status,
         "9": render_expansion_board_status,
+        "10": render_gsensor_status,
     }
     renderer = pages.get(selection)
     if renderer is None:
@@ -725,7 +762,7 @@ def run_interactive(args: argparse.Namespace) -> int:
                 handle_led_page()
             elif selection == "4":
                 handle_fan_page()
-            elif selection in {"1", "2", "5", "6", "7", "8", "9"}:
+            elif selection in {"1", "2", "5", "6", "7", "8", "9", "10"}:
                 clear_screen()
                 print(render_page(selection, args))
                 prompt_input("\nPress Enter to return...")

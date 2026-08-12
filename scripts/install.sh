@@ -20,7 +20,7 @@ Options:
   --tool all        Install to every supported agent/tool.
   --skill NAME      Install one skill directory name. Default: all.
   --dry-run         Print planned install paths without copying files.
-  --local           Install to repo-level dir (.claude/skills/ for Claude Code, .gemini/skills/ for Gemini CLI) instead of the global tool dir.
+  --local           Install to repo-level dir (.claude/skills/, .gemini/skills/, or .picoclaw/workspace/skills/) instead of the global tool dir.
   --list-tools      Show supported agent/tool targets.
   --help            Show this help.
 
@@ -29,12 +29,13 @@ Environment overrides:
   CLAUDE_SKILLS_DIR   Claude Code skills directory. Default: \$HOME/.claude/skills
   GEMINI_SKILLS_DIR   Gemini CLI skills directory. Default: \$HOME/.gemini/skills
   HERMES_SKILLS_DIR   Hermes skills directory. Default: \$HOME/.hermes/skills
+  PICOCLAW_HOME       PicoClaw home directory. Default: \$HOME/.picoclaw
   OPENCLAW_AGENTS_DIR OpenClaw agents directory. Default: \$HOME/.openclaw/agency-agents
 USAGE
 }
 
 supported_tools() {
-  printf '%s\n' codex claude-code gemini-cli hermes openclaw
+  printf '%s\n' codex claude-code gemini-cli hermes picoclaw openclaw
 }
 
 target_root_for_tool() {
@@ -45,6 +46,9 @@ target_root_for_tool() {
     hermes)
       printf '%s\n' "${HERMES_SKILLS_DIR:-$HOME/.hermes/skills}"
       ;;
+    picoclaw)
+      printf '%s\n' "${PICOCLAW_HOME:-$HOME/.picoclaw}/workspace/skills"
+      ;;
     claude-code)
       printf '%s\n' "${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
       ;;
@@ -53,6 +57,23 @@ target_root_for_tool() {
       ;;
     openclaw)
       printf '%s\n' "${OPENCLAW_AGENTS_DIR:-$HOME/.openclaw/agency-agents}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+local_root_for_tool() {
+  case "$1" in
+    claude-code)
+      printf '%s\n' "$REPO_ROOT/.claude/skills"
+      ;;
+    gemini-cli)
+      printf '%s\n' "$REPO_ROOT/.gemini/skills"
+      ;;
+    picoclaw)
+      printf '%s\n' "$REPO_ROOT/.picoclaw/workspace/skills"
       ;;
     *)
       return 1
@@ -210,26 +231,15 @@ install_skill_for_tool() {
   local converted_source
 
   if [ "$LOCAL" = "yes" ]; then
-    if [ "$tool" = "claude-code" ]; then
-      target_root="$REPO_ROOT/.claude/skills"
-    elif [ "$tool" = "gemini-cli" ]; then
-      target_root="$REPO_ROOT/.gemini/skills"
-    else
-      echo "skip: --local is only supported for claude-code and gemini-cli, not $tool" >&2
+    if ! target_root="$(local_root_for_tool "$tool")"; then
+      echo "skip: --local is only supported for claude-code, gemini-cli, and picoclaw, not $tool" >&2
       return 0
     fi
   else
     target_root="$(target_root_for_tool "$tool")"
   fi
   agent_name="$(skill_name_for_dir "$source_dir")"
-
-  if [ "$tool" = "gemini-cli" ]; then
-    target_dir="$target_root/$agent_name"
-  elif [ "$tool" = "openclaw" ]; then
-    target_dir="$target_root/$agent_name"
-  else
-    target_dir="$target_root/$agent_name"
-  fi
+  target_dir="$target_root/$agent_name"
 
   echo "tool=$tool"
   echo "source=$source_dir"
@@ -273,7 +283,7 @@ fi
 
 if [ "$TOOL" = "all" ]; then
   if [ "$LOCAL" = "yes" ]; then
-    TOOLS="claude-code gemini-cli"
+    TOOLS="claude-code gemini-cli picoclaw"
   else
     TOOLS="$(supported_tools)"
   fi
@@ -311,6 +321,13 @@ for tool in $TOOLS; do
           echo "gemini-cli=restart Gemini CLI, then run /skills reload and /skills list (installed to $REPO_ROOT/.gemini/skills/)"
         else
           echo "gemini-cli=restart Gemini CLI, then run /skills reload and /skills list"
+        fi
+        ;;
+      picoclaw)
+        if [ "$LOCAL" = "yes" ]; then
+          echo "picoclaw=restart PicoClaw, then use /list skills or /use <skill> (installed to $REPO_ROOT/.picoclaw/workspace/skills/)"
+        else
+          echo "picoclaw=restart PicoClaw, then use /list skills or /use <skill>"
         fi
         ;;
       hermes)

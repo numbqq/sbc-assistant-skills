@@ -211,7 +211,7 @@ Convert generated integration formats:
 ./scripts/convert.sh --tool openclaw
 ```
 
-Codex, Claude Code, and Hermes use the native skill bundle directly, so
+Codex, Claude Code, Hermes, and PicoClaw use the native skill bundle directly, so
 conversion is a no-op for those targets. Use `install.sh` to install them.
 
 Install all skills into the default target, Codex:
@@ -227,6 +227,7 @@ Install all skills into a specific target:
 ./scripts/install.sh --tool claude-code
 ./scripts/install.sh --tool gemini-cli
 ./scripts/install.sh --tool hermes
+./scripts/install.sh --tool picoclaw
 ./scripts/convert.sh --tool openclaw
 ./scripts/install.sh --tool openclaw
 ```
@@ -264,6 +265,7 @@ Preview source and target paths without copying files:
 | Claude Code | `$HOME/.claude/skills/` | `CLAUDE_SKILLS_DIR` | Native skill bundle |
 | Gemini CLI | `$HOME/.gemini/skills/` | `GEMINI_SKILLS_DIR` | Native skill bundle |
 | Hermes | `$HOME/.hermes/skills/` | `HERMES_SKILLS_DIR` | Native skill bundle |
+| PicoClaw | `${PICOCLAW_HOME:-$HOME/.picoclaw}/workspace/skills/` | `PICOCLAW_HOME` | Native skill bundle |
 | OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` | Agent workspace |
 
 Generated integration artifacts are written under the ignored
@@ -276,17 +278,19 @@ integrations/
 ```
 
 Codex, Claude Code, Gemini CLI, and Hermes receive the full source skill
-directory. OpenClaw receives an agent workspace. `convert.sh --tool gemini-cli`
-is still available when you want a Gemini CLI extension artifact; the generated
-extension bundles the skill under `skills/<skill-name>/`.
+directory. PicoClaw receives the full source skill directory. OpenClaw receives
+an agent workspace. `convert.sh --tool gemini-cli` is still available when you
+want a Gemini CLI extension artifact; the generated extension bundles the skill
+under `skills/<skill-name>/`.
 
-Claude Code and Gemini CLI also support project-level skills. Use `--local` to
-install into this repository's `.claude/skills/` and `.gemini/skills/`
-directories:
+Claude Code, Gemini CLI, and PicoClaw also support project-level skills. Use
+`--local` to install into this repository's `.claude/skills/`,
+`.gemini/skills/`, and `.picoclaw/workspace/skills/` directories:
 
 ```bash
 ./scripts/install.sh --tool claude-code --local
 ./scripts/install.sh --tool gemini-cli --local
+./scripts/install.sh --tool picoclaw --local
 ```
 
 After installation, restart the target AI tool if it is already running.
@@ -301,6 +305,7 @@ claude-code=restart Claude Code, then use /khadas-vim-5-hardware-control
 gemini-cli=restart Gemini CLI, then run /skills reload and /skills list
 hermes=restart Hermes, then use the khadas-vim4-hardware-control skill
 hermes=restart Hermes, then use the khadas-vim-5-hardware-control skill
+picoclaw=restart PicoClaw, then use /list skills or /use <skill>
 openclaw=restart OpenClaw gateway, then use the khadas-vim4-hardware-control agent
 openclaw=restart OpenClaw gateway, then use the khadas-vim-5-hardware-control agent
 ```
@@ -335,6 +340,7 @@ Update all installed skills for one target:
 ./scripts/install.sh --tool claude-code
 ./scripts/install.sh --tool gemini-cli
 ./scripts/install.sh --tool hermes
+./scripts/install.sh --tool picoclaw
 ```
 
 Update all supported targets:
@@ -379,6 +385,7 @@ Other default install locations:
 rm -rf "$HOME/.claude/skills/khadas-vim-5-hardware-control"
 rm -rf "$HOME/.gemini/skills/khadas-vim-5-hardware-control"
 rm -rf "$HOME/.hermes/skills/khadas-vim-5-hardware-control"
+rm -rf "$HOME/.picoclaw/workspace/skills/khadas-vim-5-hardware-control"
 rm -rf "$HOME/.openclaw/agency-agents/khadas-vim-5-hardware-control"
 ```
 

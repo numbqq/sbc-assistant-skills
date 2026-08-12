@@ -10,7 +10,7 @@ usage() {
 Usage:
   $0 [--tool TOOL] [--skill NAME|all]
   $0 --tool all [--skill NAME|all]
-  $0 --codex|--claude-code|--gemini-cli|--hermes|--openclaw [--skill NAME|all]
+  $0 --codex|--claude-code|--gemini-cli|--hermes|--picoclaw|--openclaw [--skill NAME|all]
   $0 --list-tools
   $0 --help
 
@@ -21,6 +21,7 @@ Options:
   --claude-code     No conversion needed; install with install.sh.
   --gemini-cli      Convert to Gemini CLI extensions with bundled Agent Skills.
   --hermes          No conversion needed; install with install.sh.
+  --picoclaw        No conversion needed; install with install.sh.
   --openclaw        Convert to OpenClaw agent workspaces.
   --skill NAME      Convert one skill directory name. Default: all.
   --list-tools      Show supported targets.
@@ -33,7 +34,7 @@ conversion_tools() {
 }
 
 native_tools() {
-  printf '%s\n' codex claude-code hermes
+  printf '%s\n' codex claude-code hermes picoclaw
 }
 
 supported_tools() {
@@ -126,6 +127,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --hermes)
       TOOL="hermes"
+      shift
+      ;;
+    --picoclaw)
+      TOOL="picoclaw"
       shift
       ;;
     --openclaw)
@@ -342,6 +347,9 @@ for tool in $TOOLS; do
         ;;
       openclaw)
         convert_openclaw "$source_dir"
+        ;;
+      picoclaw)
+        report_native_tool "$tool" "$source_dir"
         ;;
       codex|claude-code|hermes)
         report_native_tool "$tool" "$source_dir"

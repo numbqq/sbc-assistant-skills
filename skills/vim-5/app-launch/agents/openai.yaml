@@ -1,0 +1,4 @@
+interface:
+  display_name: "VIM 5 App Launch"
+  short_description: "VIM 5 launcher control and app catalog helper."
+  default_prompt: "Use $khadas-vim-5-app-launch to query the VIM 5 app catalog, resolve canonical app IDs, and start or stop apps through runtime/control-app."

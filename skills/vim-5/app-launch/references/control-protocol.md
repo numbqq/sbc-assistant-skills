@@ -2,6 +2,8 @@
 
 The running launcher listens on `VIBE_CONTROL_SOCKET` or `XDG_RUNTIME_DIR/vibe-control.sock`.
 
+Use `/home/khadas/v5-block-example/runtime/control-app` when the agent is not already running from `/home/khadas/v5-block-example`.
+
 ## Commands
 
 ```bash
@@ -10,6 +12,7 @@ runtime/control-app list
 runtime/control-app status
 runtime/control-app start <app_id>
 runtime/control-app stop
+runtime/control-app generate --backend picoclaw --prompt "<prompt>"
 ```
 
 ## Catalog shape
@@ -41,6 +44,18 @@ The catalog response is JSON and includes the discovered apps:
 4. ask if still ambiguous
 
 For requests like "gsensor 小球" or "打开小球应用", do not assume a file path. Read the catalog, then prefer the app whose `id` is `gsensor-ball` when the catalog confirms that match.
+
+## Generation flow
+
+Use `runtime/control-app generate` when the user wants a new app or a new variant. Use `--backend picoclaw` for real dynamic generation. Use `--backend mock` only for local smoke testing when explicitly requested. `VIBE_PICOCLAW_COMMAND` can override the built-in Picoclaw adapter.
+
+The control socket reply only confirms that generation started. After the backend finishes, the launcher refreshes the catalog and auto-starts the new app if generation succeeded.
+
+Example:
+
+```json
+{"ok": true, "action": "generate", "backend": "picoclaw", "prompt": "做一个会动的小球"}
+```
 
 ## Operating rules
 

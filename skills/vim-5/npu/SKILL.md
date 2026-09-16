@@ -79,7 +79,9 @@ Before running NPU inference:
 6. For USB camera inference, check `ls -l /dev/video*` and verify the selected camera can produce frames.
 7. For USB camera + SPI LCD summaries, check `/dev/spidev1.0`, `spidev`, and either `gpiod` or `gpioset`. The combined program must run in a Python environment that can import both `amlnnlite` and `spidev`.
 8. For real-time Whisper, check `arecord -l`; use the hardware rate and channel count for the selected ALSA device.
-9. If imports fail, diagnose the `amlnnlite_py310` conda environment and wheel installation before trying system Python or apt packages.
+9. Before using analog MIC `hw:0,1`, require the expansion board to be connected and `fdt_overlays=ext-board-codec` to be active in `/boot/dtb/amlogic/kvim-5.dtb.overlay.env` after a reboot. Do not start analog capture when this precondition is unmet.
+10. Before every `hw:0,1` capture session, configure the route with exactly `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`. Stop if this command fails.
+11. If imports fail, diagnose the `amlnnlite_py310` conda environment and wheel installation before trying system Python or apt packages.
 
 Use the bundled status helper:
 
@@ -176,7 +178,17 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
   --language auto
 ```
 
-For the two-channel analog MIC (`arecord -D hw:0,1 -f cd -c 2`, where `cd` means S16_LE/44100 Hz/stereo), change the capture options to:
+The two-channel analog MIC is not usable from `hw:0,1` until all of these conditions are met:
+
+- The VIM 5 expansion board is connected.
+- `/boot/dtb/amlogic/kvim-5.dtb.overlay.env` contains `fdt_overlays=ext-board-codec`, and the board has rebooted after that change.
+- The capture route is configured before recording:
+
+```bash
+amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'
+```
+
+Only after the route command succeeds, use the analog MIC capture settings (`arecord -D hw:0,1 -f cd -c 2`, where `cd` means S16_LE/44100 Hz/stereo):
 
 ```bash
 --device hw:0,1 --capture-rate 44100 --capture-channels 2 --mic-channel 0
@@ -190,6 +202,7 @@ Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to ave
 - If `ModuleNotFoundError: cv2` appears, install `opencv-python` inside `amlnnlite_py310`.
 - If `ModuleNotFoundError: transformers` or `librosa` appears, install both inside `amlnnlite_py310`.
 - If `arecord` is missing, install `alsa-utils`. If capture fails, verify the selected device with `arecord -l` and do not substitute 16 kHz/mono values for hardware devices that require 48 kHz/6ch or 44.1 kHz/2ch.
+- If analog MIC `hw:0,1` is unavailable or silent, first verify `ext-board-codec` is the active overlay after reboot, then rerun `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`. Do not treat VAD tuning as a substitute for these hardware-routing requirements.
 - If Whisper never reports `Speech detected`, keep quiet during calibration, select another channel, or lower the RMS threshold. If noise triggers recognition repeatedly, raise the threshold.
 - If Whisper produces unstable language results for very short or mixed-language speech, use a fixed `--language` value or speak a longer utterance.
 - If `ModuleNotFoundError: spidev` appears in the USB camera + SPI LCD app, install `spidev` into the same Python environment that runs `amlnnlite`, for example `conda run -n amlnnlite_py310 pip install spidev`.

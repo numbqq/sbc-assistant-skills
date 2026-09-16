@@ -54,7 +54,9 @@ scripts/vim-5_npu_status.py whisper-file-command --audio-file /path/to/audio.wav
 ```
 
 The helper emits a `conda run` command with absolute paths to the installed
-script, models, and tokenizer. Execute the printed command on the VIM 5 host.
+script, models, and tokenizer. For `hw:0,1`, it prefixes the command with the
+required `amixer` route setup joined by `&&`, so Whisper does not start if route
+configuration fails. Execute the printed command on the VIM 5 host.
 
 ## Audio-file inference
 
@@ -103,6 +105,25 @@ channel levels when recognition is poor, then select the cleanest channel.
 ## Real-time analog MIC
 
 `-f cd` is ALSA shorthand for S16_LE, 44100 Hz, stereo:
+
+Analog capture has mandatory hardware prerequisites:
+
+1. Connect the VIM 5 expansion board.
+2. Set `fdt_overlays=ext-board-codec` in
+   `/boot/dtb/amlogic/kvim-5.dtb.overlay.env`.
+3. Reboot after changing the Overlay configuration.
+4. Before recording, set the capture route and stop if it fails:
+
+```bash
+amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'
+```
+
+Do not start Whisper against `hw:0,1` until the Overlay is active after reboot
+and the route command succeeds. The `ext-board-codec` Overlay shares pins with
+I2S and SPI functions; avoid conflicting Overlays unless the mux configuration
+has been confirmed.
+
+Verify standalone recording before Whisper:
 
 ```bash
 arecord -D hw:0,1 -f cd -c 2 -d 5 /tmp/analog-mic.wav
@@ -167,9 +188,11 @@ can produce unstable automatic detection.
    assets, `arecord`, or ADLA device access.
 2. Run file inference with a known WAV file and confirm text output.
 3. Run `arecord -l` and a short recording with the exact device parameters.
-4. Start real-time inference, remain quiet during calibration, speak a sentence,
+4. For `hw:0,1`, verify `ext-board-codec` is active after reboot and run the
+   required `amixer` route command before the short recording.
+5. Start real-time inference, remain quiet during calibration, speak a sentence,
    then pause for at least `--silence-ms`.
-5. If no text appears, inspect channel RMS or try another `--mic-channel` before
+6. If no text appears, inspect channel RMS or try another `--mic-channel` before
    changing VAD thresholds.
 
 The runtime keeps the models loaded between utterances. Initial startup is

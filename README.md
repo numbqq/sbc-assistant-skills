@@ -194,7 +194,7 @@ Coverage:
 - Bundled Whisper Encoder/Decoder ADLA models and local tokenizer
 - Whisper audio-file and endpointed real-time microphone transcription
 - Automatic spoken-language detection or fixed-language decoding
-- PDM Mic Array (`hw:0,3`, 48 kHz, 6ch) and analog MIC (`hw:0,1`, 44.1 kHz, 2ch) capture profiles
+- PDM Mic Array (`hw:0,3`, 48 kHz, 6ch) and analog MIC (`hw:0,1`, 44.1 kHz, 2ch) capture profiles; analog MIC requires the `ext-board-codec` Overlay and `TDMIN_B` ALSA route setup
 - No hard-coded external reference-code paths
 
 ## Installation

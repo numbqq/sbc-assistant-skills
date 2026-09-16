@@ -177,6 +177,8 @@ class VimFiveNpuStatusTest(unittest.TestCase):
 
         command = vim_5_npu_status.cmd_whisper_microphone(args)
 
+        self.assertTrue(command.startswith(vim_5_npu_status.ANALOG_MIC_ROUTE_COMMAND))
+        self.assertIn(" && conda run -n amlnnlite_py310 python", command)
         self.assertIn(str(vim_5_npu_status.WHISPER_SCRIPT), command)
         self.assertIn("--microphone", command)
         self.assertIn("--device hw:0,1", command)
@@ -184,6 +186,38 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("--capture-channels 2", command)
         self.assertIn("--mic-channel mix", command)
         self.assertIn("--language auto", command)
+
+    def test_whisper_pdm_microphone_command_does_not_change_analog_route(self):
+        args = vim_5_npu_status.build_parser().parse_args(
+            ["whisper-microphone-command", "--conda", "conda"]
+        )
+
+        command = vim_5_npu_status.cmd_whisper_microphone(args)
+
+        self.assertNotIn("amixer", command)
+        self.assertIn("--device hw:0,3", command)
+        self.assertIn("--capture-rate 48000", command)
+        self.assertIn("--capture-channels 6", command)
+
+    def test_overlay_state_requires_ext_board_codec(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "kvim-5.dtb.overlay.env"
+            config.write_text(
+                'fdt_overlays="uart_ao_e ext-board-codec" # enabled\n',
+                encoding="utf-8",
+            )
+            present = vim_5_npu_status.overlay_state(
+                config,
+                vim_5_npu_status.ANALOG_MIC_REQUIRED_OVERLAY,
+            )
+            config.write_text("fdt_overlays=uart_ao_e\n", encoding="utf-8")
+            missing = vim_5_npu_status.overlay_state(
+                config,
+                vim_5_npu_status.ANALOG_MIC_REQUIRED_OVERLAY,
+            )
+
+        self.assertEqual(present, "present")
+        self.assertTrue(missing.startswith("missing:ext-board-codec"))
 
     def test_status_reports_bundled_assets_and_no_reference_path(self):
         args = vim_5_npu_status.build_parser().parse_args(["status", "--conda", "conda"])
@@ -196,6 +230,11 @@ class VimFiveNpuStatusTest(unittest.TestCase):
             mock.patch.object(vim_5_npu_status, "video_devices", return_value=[]),
             mock.patch.object(vim_5_npu_status, "adla_device_nodes", return_value=["/dev/adla0"]),
             mock.patch.object(vim_5_npu_status, "adla_sysfs_devices", return_value=["/sys/class/adla/adla0"]),
+            mock.patch.object(
+                vim_5_npu_status,
+                "overlay_state",
+                return_value="missing:ext-board-codec is not configured",
+            ),
             contextlib.redirect_stdout(stream),
         ):
             rc = vim_5_npu_status.cmd_status(args)
@@ -233,6 +272,13 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("yolov8n_usb_camera_spi_lcd_ready=no", text)
         self.assertIn("whisper_file_ready=no", text)
         self.assertIn("whisper_microphone_ready=no", text)
+        self.assertIn("analog_mic_required_overlay=ext-board-codec", text)
+        self.assertIn(
+            "analog_mic_route_command=amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'",
+            text,
+        )
+        self.assertIn("whisper_analog_microphone_ready=no", text)
+        self.assertIn("missing_analog_mic_overlay_note=set fdt_overlays=ext-board-codec", text)
 
     def test_setup_commands_match_amlnnlite_py310_install_flow(self):
         args = vim_5_npu_status.build_parser().parse_args(

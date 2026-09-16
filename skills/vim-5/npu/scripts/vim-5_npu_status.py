@@ -38,6 +38,12 @@ BUNDLED_WHISPER_DECODER = (
     WHISPER_ASSET_ROOT / "model" / "whisper_decoder_static_sim_w8a16.adla"
 )
 BUNDLED_WHISPER_TOKENIZER = WHISPER_ASSET_ROOT / "tokenizer"
+ANALOG_MIC_DEVICE = "hw:0,1"
+ANALOG_MIC_REQUIRED_OVERLAY = "ext-board-codec"
+ANALOG_MIC_OVERLAY_CONFIG = Path("/boot/dtb/amlogic/kvim-5.dtb.overlay.env")
+ANALOG_MIC_ROUTE_COMMAND = (
+    "amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'"
+)
 REPO_SPI_LCD_HELPER = SKILL_ROOT.parent / "hardware-control" / "scripts" / "spi_lcd_st7735.py"
 INSTALLED_SPI_LCD_HELPER = (
     Path.home() / ".codex" / "skills" / "khadas-vim-5-hardware-control" / "scripts" / "spi_lcd_st7735.py"
@@ -197,6 +203,28 @@ def adla_device_nodes() -> list[str]:
 
 def adla_sysfs_devices() -> list[str]:
     return sorted(glob.glob("/sys/class/adla/adla*"))
+
+
+def overlay_state(config: Path, required_overlay: str) -> str:
+    if not config.is_file():
+        return f"missing:config not found: {config}"
+
+    try:
+        lines = config.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        return f"missing:cannot read config: {error}"
+
+    overlays: list[str] = []
+    for raw_line in lines:
+        line = raw_line.split("#", 1)[0].strip()
+        if not line.startswith("fdt_overlays="):
+            continue
+        value = line.split("=", 1)[1].strip().strip('"\'').replace(",", " ")
+        overlays.extend(value.split())
+
+    if required_overlay in overlays:
+        return "present"
+    return f"missing:{required_overlay} is not configured"
 
 
 def spi_lcd_helper_candidates() -> list[Path]:
@@ -418,7 +446,10 @@ def cmd_whisper_microphone(args: argparse.Namespace) -> str:
     )
     if args.energy_threshold > 0:
         parts.extend(["--energy-threshold", q(args.energy_threshold)])
-    return " ".join(parts)
+    command = " ".join(parts)
+    if args.device == ANALOG_MIC_DEVICE:
+        return f"{ANALOG_MIC_ROUTE_COMMAND} && {command}"
+    return command
 
 
 def print_path_checks() -> None:
@@ -500,6 +531,11 @@ def cmd_status(args: argparse.Namespace) -> int:
     spi_node = Path(args.spi)
     gpioset = shutil.which("gpioset")
     arecord = shutil.which("arecord")
+    amixer = shutil.which("amixer")
+    analog_overlay_state = overlay_state(
+        ANALOG_MIC_OVERLAY_CONFIG,
+        ANALOG_MIC_REQUIRED_OVERLAY,
+    )
     print("spi_lcd_helper_candidates=" + joined_paths(spi_lcd_helpers))
     print("spi_lcd_helper=" + (f"ready:{spi_lcd_helper}" if spi_lcd_helper else "missing"))
     print(f"spi_device={args.spi}")
@@ -508,6 +544,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"spi_lcd_dc_line={args.dc_line}")
     print("command_gpioset=" + (f"present:{gpioset}" if gpioset else "missing"))
     print("command_arecord=" + (f"present:{arecord}" if arecord else "missing"))
+    print("command_amixer=" + (f"present:{amixer}" if amixer else "missing"))
+    print(f"analog_mic_device={ANALOG_MIC_DEVICE}")
+    print(f"analog_mic_required_overlay={ANALOG_MIC_REQUIRED_OVERLAY}")
+    print(f"analog_mic_overlay_config={ANALOG_MIC_OVERLAY_CONFIG}")
+    print(f"analog_mic_overlay_state={analog_overlay_state}")
+    print(f"analog_mic_route_command={ANALOG_MIC_ROUTE_COMMAND}")
 
     deps_ready = runtime_state == "present" and cv2_state == "present" and numpy_state == "present"
     npu_ready = probe_state == "present"
@@ -560,6 +602,19 @@ def cmd_status(args: argparse.Namespace) -> int:
         + (
             "yes"
             if whisper_deps_ready and npu_ready and whisper_assets_ready and arecord is not None
+            else "no"
+        )
+    )
+    print(
+        "whisper_analog_microphone_ready="
+        + (
+            "yes"
+            if whisper_deps_ready
+            and npu_ready
+            and whisper_assets_ready
+            and arecord is not None
+            and amixer is not None
+            and analog_overlay_state == "present"
             else "no"
         )
     )
@@ -618,6 +673,13 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"missing_whisper_tokenizer_note=expected Whisper tokenizer at {whisper_tokenizer}")
     if arecord is None:
         print("missing_arecord_note=install alsa-utils for real-time microphone capture")
+    if amixer is None:
+        print("missing_amixer_note=install alsa-utils for analog MIC route setup")
+    if analog_overlay_state != "present":
+        print(
+            "missing_analog_mic_overlay_note=set fdt_overlays=ext-board-codec in "
+            f"{ANALOG_MIC_OVERLAY_CONFIG} and reboot before using {ANALOG_MIC_DEVICE}"
+        )
     return 0
 
 

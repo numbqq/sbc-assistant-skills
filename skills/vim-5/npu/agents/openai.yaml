@@ -1,4 +1,4 @@
 interface:
   display_name: "VIM 5 NPU"
-  short_description: "VIM 5 8T NPU helper with bundled YOLOv8n ADLA assets and USB camera demos."
-  default_prompt: "Use $khadas-vim-5-npu to check the VIM 5 NPU environment or run a YOLOv8n ADLA demo with bundled sample assets, USB camera input, or USB camera + SPI LCD summaries."
+  short_description: "VIM 5 NPU helper for YOLOv8n and real-time Whisper."
+  default_prompt: "Use $khadas-vim-5-npu to run or troubleshoot bundled YOLOv8n vision inference or Whisper file and real-time microphone transcription on VIM 5."

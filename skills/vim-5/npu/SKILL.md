@@ -1,6 +1,6 @@
 ---
 name: khadas-vim-5-npu
-description: VIM 5 8 TOPS NPU application helper for running, generating, and debugging Python workflows with the amlnnlite_py310 conda environment, Amlogic AMLNNLite, bundled YOLOv8n ADLA model and sample image assets, bundled YOLOv8n image inference, bundled YOLOv8n USB camera inference, OpenCV camera/display handling, and runtime dependency checks. Use when Codex needs to set up or check the VIM 5 NPU runtime environment, run the bundled .adla model, troubleshoot amlnnlite/cv2/numpy imports, inspect USB camera devices, or adapt the bundled YOLOv8n NPU scripts.
+description: VIM 5 8 TOPS NPU application helper for Amlogic AMLNNLite workflows in the amlnnlite_py310 conda environment, including bundled YOLOv8n image/camera demos and bundled Whisper file or real-time microphone transcription. Use when setting up, running, adapting, or debugging VIM 5 ADLA inference, NPU dependencies, USB camera input, ALSA microphone input, speech recognition, or automatic spoken-language detection.
 ---
 
 # VIM 5 NPU
@@ -17,10 +17,13 @@ Supported initial target:
 - YOLOv8n ADLA still-image inference with `scripts/vim-5_yolov8n_image.py`
 - YOLOv8n ADLA USB camera inference with `scripts/vim-5_yolov8n_usb_camera.py`
 - YOLOv8n ADLA USB camera input with VIM 5 expansion-board SPI LCD summaries using `scripts/vim-5_yolov8n_usb_camera_spi_lcd.py`
-- Conda Python environment setup and runtime checks for `amlnnlite`, `cv2`, `numpy`, `.adla` model files, bundled scripts, bundled images, and `/dev/video*`
+- Whisper ADLA file transcription and endpointed real-time microphone transcription with `scripts/vim-5_whisper.py`
+- Automatic Whisper language detection or an explicitly selected language such as `zh` or `en`
+- VIM 5 PDM Mic Array capture from `hw:0,3` and analog MIC capture from `hw:0,1`
+- Conda Python environment setup and runtime checks for `amlnnlite`, `cv2`, `numpy`, `transformers`, `librosa`, `.adla` model files, bundled scripts and assets, `/dev/video*`, and `arecord`
 - ADLA device visibility checks for `/dev/adla*` and `/sys/class/adla/adla*`
 
-The required YOLOv8n `.adla` inference model and a sample image are bundled under `assets/`. Do not hard-code or call any external reference-code path in this skill. Treat external examples only as references for code logic.
+The required YOLOv8n and Whisper `.adla` models, YOLOv8n sample image, and Whisper tokenizer are bundled under `assets/`. Do not hard-code or call any external reference-code path such as `~/whisper` in this skill. Treat external examples only as references for code logic.
 
 ## Default paths
 
@@ -33,12 +36,16 @@ scripts/vim_5_yolov8n_spi_lcd.py
 scripts/vim-5_yolov8n_image.py
 scripts/vim-5_yolov8n_usb_camera.py
 scripts/vim-5_yolov8n_usb_camera_spi_lcd.py
+scripts/vim-5_whisper.py
 scripts/vim-5_npu_status.py
 assets/yolov8n/model/yolov8n_rawhead_w8a8_a311y3.adla
 assets/yolov8n/input/test_image.png
+assets/whisper/model/whisper_encoder_static_sim_w8a16.adla
+assets/whisper/model/whisper_decoder_static_sim_w8a16.adla
+assets/whisper/tokenizer/
 ```
 
-Generated inference commands use the bundled scripts and bundled assets by default. Override `--model-path` or `--image-dir` only when the user explicitly wants to run a different `.adla` model or image set.
+Generated inference commands use the bundled scripts and bundled assets by default. Override asset paths only when the user explicitly wants to run a different model, tokenizer, image set, or audio file.
 
 ## Python environment
 
@@ -48,7 +55,7 @@ Use the dedicated NPU conda environment by default:
 conda create -n amlnnlite_py310 python=3.10 -y
 conda activate amlnnlite_py310
 for req in $(cat requirements.txt); do pip install $req; done
-pip install opencv-python amlnn_edge_toolkit_lite-*-linux_aarch64.whl
+pip install opencv-python transformers librosa amlnn_edge_toolkit_lite-*-linux_aarch64.whl
 ```
 
 Run these commands from the directory that contains `requirements.txt` and the `amlnn_edge_toolkit_lite-*-linux_aarch64.whl` file. If those files are not in the current directory, ask the user for the SDK/package directory or search the local filesystem.
@@ -65,13 +72,14 @@ If `conda` is not on the non-interactive PATH, use the executable discovered by 
 
 Before running NPU inference:
 1. Check that conda exists and that the `amlnnlite_py310` environment can run Python.
-2. Check runtime modules with `conda run -n amlnnlite_py310 python -c 'import amlnnlite, cv2, numpy'` for inference.
+2. For YOLO, check `amlnnlite`, `cv2`, and `numpy`. For Whisper, check `amlnnlite`, `transformers`, `librosa`, and `numpy`.
 3. Check the bundled `.adla` model and sample image exist before inference.
 4. Check `ls -l /dev/adla*` and `/sys/class/adla/adla*`; VIM 5 normally exposes `/dev/adla0`.
 5. Run the helper's AMLNNLite model-load probe before marking inference ready.
 6. For USB camera inference, check `ls -l /dev/video*` and verify the selected camera can produce frames.
 7. For USB camera + SPI LCD summaries, check `/dev/spidev1.0`, `spidev`, and either `gpiod` or `gpioset`. The combined program must run in a Python environment that can import both `amlnnlite` and `spidev`.
-8. If imports fail, diagnose the `amlnnlite_py310` conda environment and wheel installation before trying system Python or apt packages.
+8. For real-time Whisper, check `arecord -l`; use the hardware rate and channel count for the selected ALSA device.
+9. If imports fail, diagnose the `amlnnlite_py310` conda environment and wheel installation before trying system Python or apt packages.
 
 Use the bundled status helper:
 
@@ -82,6 +90,7 @@ scripts/vim-5_npu_status.py commands
 ```
 
 `status` reports whether bundled image inference is ready and whether USB camera inference is ready. Image and USB camera inference use `amlnnlite`.
+It also reports whether the bundled Whisper assets, Python modules, and `arecord` command are ready.
 The USB camera + SPI LCD application reuses the VIM 5 hardware-control skill's `scripts/spi_lcd_st7735.py` helper for the low-level ST7735 display driver instead of duplicating board-control code. Keep `khadas-vim-5-hardware-control` installed or keep this repo's sibling `skills/vim-5/hardware-control` tree available.
 If Codex is running in a restricted execution environment, it may not see `/dev/adla0` even when the user's shell can. In that case, trust a user-provided `ls /dev/adla*` result for device-node visibility, but still surface any AMLNNLite model-load probe failure separately.
 
@@ -133,10 +142,56 @@ For a bounded smoke test, add `--max-frames 30`. To disable the SPI LCD while te
 
 The SPI LCD path assumes the VIM 5 expansion-board display is exposed as `/dev/spidev1.0` after the `spi1-lcd` overlay is active and the board has rebooted. The default GPIO lines are `GPIOD_5` for reset and `GPIOM_1` for D/C, matching the bundled VIM 5 hardware-control SPI LCD helper.
 
+## Whisper file transcription
+
+Use a local audio file; `librosa` converts it to mono 16 kHz before inference:
+
+```bash
+conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
+  --enc assets/whisper/model/whisper_encoder_static_sim_w8a16.adla \
+  --dec assets/whisper/model/whisper_decoder_static_sim_w8a16.adla \
+  --tokenizer assets/whisper/tokenizer \
+  --audio-file /path/to/audio.wav \
+  --language auto
+```
+
+`--language auto` detects the language for every segment and is the default. Use a fixed language such as `--language zh` when lower latency and stable single-language recognition matter more than detection.
+
+## Whisper real-time microphone transcription
+
+Whisper uses a fixed 30-second encoder input, but the bundled script pads short utterances and emits finalized text after a silence boundary. It keeps both NPU models loaded and continues capturing audio while inference runs. This is endpointed utterance streaming, not token-by-token streaming.
+
+For the six-channel PDM Mic Array (`arecord -D hw:0,3 -r 48000 -f S16_LE -c 6`):
+
+```bash
+conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
+  --enc assets/whisper/model/whisper_encoder_static_sim_w8a16.adla \
+  --dec assets/whisper/model/whisper_decoder_static_sim_w8a16.adla \
+  --tokenizer assets/whisper/tokenizer \
+  --microphone \
+  --device hw:0,3 \
+  --capture-rate 48000 \
+  --capture-channels 6 \
+  --mic-channel 0 \
+  --language auto
+```
+
+For the two-channel analog MIC (`arecord -D hw:0,1 -f cd -c 2`, where `cd` means S16_LE/44100 Hz/stereo), change the capture options to:
+
+```bash
+--device hw:0,1 --capture-rate 44100 --capture-channels 2 --mic-channel 0
+```
+
+Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to average all captured channels. Keep quiet during the initial ambient-noise calibration. For faster finalization, reduce `--silence-ms` from 1000 to about 700; if speech is missed, lower `--energy-threshold` or `--min-energy-threshold` carefully.
+
 ## Troubleshooting
 
 - If `ModuleNotFoundError: amlnnlite` appears, activate `amlnnlite_py310` and install `amlnn_edge_toolkit_lite-*-linux_aarch64.whl` into that environment.
 - If `ModuleNotFoundError: cv2` appears, install `opencv-python` inside `amlnnlite_py310`.
+- If `ModuleNotFoundError: transformers` or `librosa` appears, install both inside `amlnnlite_py310`.
+- If `arecord` is missing, install `alsa-utils`. If capture fails, verify the selected device with `arecord -l` and do not substitute 16 kHz/mono values for hardware devices that require 48 kHz/6ch or 44.1 kHz/2ch.
+- If Whisper never reports `Speech detected`, keep quiet during calibration, select another channel, or lower the RMS threshold. If noise triggers recognition repeatedly, raise the threshold.
+- If Whisper produces unstable language results for very short or mixed-language speech, use a fixed `--language` value or speak a longer utterance.
 - If `ModuleNotFoundError: spidev` appears in the USB camera + SPI LCD app, install `spidev` into the same Python environment that runs `amlnnlite`, for example `conda run -n amlnnlite_py310 pip install spidev`.
 - If the SPI LCD GPIO dependency is missing, install `gpiod` and optionally `python3-libgpiod`; `gpioset` is enough for the bundled helper's fallback mode.
 - If camera open fails, check the device path, permissions, USB connection, and whether another process owns the camera.
@@ -147,4 +202,5 @@ The SPI LCD path assumes the VIM 5 expansion-board display is exposed as `/dev/s
 
 ## Bundled references
 
-Consult `references/vim-5-npu-yolov8n.md` for exact command patterns and example-specific notes.
+- Consult `references/vim-5-npu-yolov8n.md` for YOLOv8n command patterns and example-specific notes.
+- Consult `references/vim-5-npu-whisper.md` for Whisper assets, language handling, microphone profiles, VAD tuning, and validation steps.

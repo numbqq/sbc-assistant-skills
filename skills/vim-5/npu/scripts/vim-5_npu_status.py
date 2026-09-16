@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect VIM 5 NPU skill readiness and print reusable YOLOv8n commands."""
+"""Inspect VIM 5 NPU skill readiness and print YOLOv8n or Whisper commands."""
 
 from __future__ import annotations
 
@@ -29,6 +29,15 @@ SPI_LCD_MODULE = SCRIPT_DIR / "vim_5_yolov8n_spi_lcd.py"
 IMAGE_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_image.py"
 USB_CAMERA_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera.py"
 USB_CAMERA_SPI_LCD_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera_spi_lcd.py"
+WHISPER_SCRIPT = SCRIPT_DIR / "vim-5_whisper.py"
+WHISPER_ASSET_ROOT = ASSET_ROOT / "whisper"
+BUNDLED_WHISPER_ENCODER = (
+    WHISPER_ASSET_ROOT / "model" / "whisper_encoder_static_sim_w8a16.adla"
+)
+BUNDLED_WHISPER_DECODER = (
+    WHISPER_ASSET_ROOT / "model" / "whisper_decoder_static_sim_w8a16.adla"
+)
+BUNDLED_WHISPER_TOKENIZER = WHISPER_ASSET_ROOT / "tokenizer"
 REPO_SPI_LCD_HELPER = SKILL_ROOT.parent / "hardware-control" / "scripts" / "spi_lcd_st7735.py"
 INSTALLED_SPI_LCD_HELPER = (
     Path.home() / ".codex" / "skills" / "khadas-vim-5-hardware-control" / "scripts" / "spi_lcd_st7735.py"
@@ -221,6 +230,18 @@ def selected_image_dir(args: argparse.Namespace) -> Path:
     return args.image_dir or BUNDLED_IMAGE_DIR
 
 
+def selected_whisper_encoder(args: argparse.Namespace) -> Path:
+    return args.whisper_encoder or BUNDLED_WHISPER_ENCODER
+
+
+def selected_whisper_decoder(args: argparse.Namespace) -> Path:
+    return args.whisper_decoder or BUNDLED_WHISPER_DECODER
+
+
+def selected_whisper_tokenizer(args: argparse.Namespace) -> Path:
+    return args.whisper_tokenizer or BUNDLED_WHISPER_TOKENIZER
+
+
 def setup_command_lines(args: argparse.Namespace) -> list[str]:
     setup_dir = args.setup_dir or Path(".")
     requirements = args.requirements or setup_dir / "requirements.txt"
@@ -235,6 +256,7 @@ def setup_command_lines(args: argparse.Namespace) -> list[str]:
             f"conda activate {q(args.conda_env)}",
             f"cd {q(setup_dir)}",
             f"for req in $(cat {q(requirements)}); do pip install $req; done",
+            "pip install transformers librosa",
             f"pip install opencv-python {wheel_pattern}",
         ]
     )
@@ -347,6 +369,58 @@ def cmd_usb_camera_spi_lcd(args: argparse.Namespace) -> str:
     return " ".join(parts)
 
 
+def whisper_command_prefix(args: argparse.Namespace) -> list[str]:
+    return [
+        target_python_text(args),
+        q(WHISPER_SCRIPT),
+        "--enc",
+        q(selected_whisper_encoder(args)),
+        "--dec",
+        q(selected_whisper_decoder(args)),
+        "--tokenizer",
+        q(selected_whisper_tokenizer(args)),
+    ]
+
+
+def cmd_whisper_file(args: argparse.Namespace) -> str:
+    parts = whisper_command_prefix(args)
+    parts.extend(
+        [
+            "--audio-file",
+            q(args.audio_file),
+            "--language",
+            q(args.language),
+        ]
+    )
+    return " ".join(parts)
+
+
+def cmd_whisper_microphone(args: argparse.Namespace) -> str:
+    parts = whisper_command_prefix(args)
+    parts.extend(
+        [
+            "--microphone",
+            "--device",
+            q(args.device),
+            "--capture-rate",
+            q(args.capture_rate),
+            "--capture-channels",
+            q(args.capture_channels),
+            "--mic-channel",
+            q(args.mic_channel),
+            "--language",
+            q(args.language),
+            "--silence-ms",
+            q(args.silence_ms),
+            "--max-utterance-seconds",
+            q(args.max_utterance_seconds),
+        ]
+    )
+    if args.energy_threshold > 0:
+        parts.extend(["--energy-threshold", q(args.energy_threshold)])
+    return " ".join(parts)
+
+
 def print_path_checks() -> None:
     checks = [
         path_check("skill_root", SKILL_ROOT),
@@ -356,9 +430,13 @@ def print_path_checks() -> None:
         path_check("image_script", IMAGE_SCRIPT),
         path_check("usb_camera_script", USB_CAMERA_SCRIPT),
         path_check("usb_camera_spi_lcd_script", USB_CAMERA_SPI_LCD_SCRIPT),
+        path_check("whisper_script", WHISPER_SCRIPT),
         path_check("bundled_adla_model", BUNDLED_ADLA_MODEL),
         path_check("bundled_image_dir", BUNDLED_IMAGE_DIR),
         path_check("bundled_test_image", BUNDLED_TEST_IMAGE),
+        path_check("bundled_whisper_encoder", BUNDLED_WHISPER_ENCODER),
+        path_check("bundled_whisper_decoder", BUNDLED_WHISPER_DECODER),
+        path_check("bundled_whisper_tokenizer", BUNDLED_WHISPER_TOKENIZER),
     ]
     for check in checks:
         print(f"{check.name}={'ready' if check.ready else 'missing'}:{check.path}")
@@ -376,11 +454,15 @@ def cmd_status(args: argparse.Namespace) -> int:
     runtime_state = target_python_module_state(args, "amlnnlite")
     cv2_state = target_python_module_state(args, "cv2")
     numpy_state = target_python_module_state(args, "numpy")
+    transformers_state = target_python_module_state(args, "transformers")
+    librosa_state = target_python_module_state(args, "librosa")
     spidev_state = target_python_module_state(args, "spidev")
     gpiod_state = target_python_module_state(args, "gpiod")
     print("runtime_module_amlnnlite=" + runtime_state)
     print("module_cv2=" + cv2_state)
     print("module_numpy=" + numpy_state)
+    print("module_transformers=" + transformers_state)
+    print("module_librosa=" + librosa_state)
     print("module_spidev=" + spidev_state)
     print("module_gpiod=" + gpiod_state)
 
@@ -393,6 +475,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"selected_image_dir={image_dir}")
     print("selected_images=" + joined_paths(files))
     print("npu_runtime_probe=" + probe_state)
+    whisper_encoder = selected_whisper_encoder(args)
+    whisper_decoder = selected_whisper_decoder(args)
+    whisper_tokenizer = selected_whisper_tokenizer(args)
+    print(f"selected_whisper_encoder={whisper_encoder}")
+    print(f"selected_whisper_decoder={whisper_decoder}")
+    print(f"selected_whisper_tokenizer={whisper_tokenizer}")
 
     setup_dir = args.setup_dir or Path(".")
     requirements = requirement_files(setup_dir)
@@ -411,6 +499,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     spi_lcd_helper = ready_path(spi_lcd_helpers)
     spi_node = Path(args.spi)
     gpioset = shutil.which("gpioset")
+    arecord = shutil.which("arecord")
     print("spi_lcd_helper_candidates=" + joined_paths(spi_lcd_helpers))
     print("spi_lcd_helper=" + (f"ready:{spi_lcd_helper}" if spi_lcd_helper else "missing"))
     print(f"spi_device={args.spi}")
@@ -418,6 +507,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"spi_lcd_reset_line={args.reset_line}")
     print(f"spi_lcd_dc_line={args.dc_line}")
     print("command_gpioset=" + (f"present:{gpioset}" if gpioset else "missing"))
+    print("command_arecord=" + (f"present:{arecord}" if arecord else "missing"))
 
     deps_ready = runtime_state == "present" and cv2_state == "present" and numpy_state == "present"
     npu_ready = probe_state == "present"
@@ -427,6 +517,18 @@ def cmd_status(args: argparse.Namespace) -> int:
     usb_camera_script_ready = USB_CAMERA_SCRIPT.exists()
     usb_camera_spi_lcd_script_ready = USB_CAMERA_SPI_LCD_SCRIPT.exists()
     camera_ready = bool(devices)
+    whisper_deps_ready = (
+        runtime_state == "present"
+        and numpy_state == "present"
+        and transformers_state == "present"
+        and librosa_state == "present"
+    )
+    whisper_assets_ready = (
+        WHISPER_SCRIPT.exists()
+        and whisper_encoder.is_file()
+        and whisper_decoder.is_file()
+        and whisper_tokenizer.is_dir()
+    )
     spi_lcd_ready = (
         SPI_LCD_MODULE.exists()
         and spi_lcd_helper is not None
@@ -449,11 +551,28 @@ def cmd_status(args: argparse.Namespace) -> int:
             else "no"
         )
     )
+    print(
+        "whisper_file_ready="
+        + ("yes" if whisper_deps_ready and npu_ready and whisper_assets_ready else "no")
+    )
+    print(
+        "whisper_microphone_ready="
+        + (
+            "yes"
+            if whisper_deps_ready and npu_ready and whisper_assets_ready and arecord is not None
+            else "no"
+        )
+    )
 
     if runtime_state.startswith("missing"):
         print(f"missing_runtime_note=create/activate conda env {args.conda_env} and install amlnn_edge_toolkit_lite wheel")
     if cv2_state.startswith("missing"):
         print(f"missing_cv2_note=install opencv-python inside conda env {args.conda_env}")
+    if transformers_state.startswith("missing") or librosa_state.startswith("missing"):
+        print(
+            f"missing_whisper_python_note=install transformers and librosa inside conda env "
+            f"{args.conda_env}"
+        )
     if spidev_state.startswith("missing"):
         print(
             f"missing_spidev_note=install spidev into the Python used for inference, for example: "
@@ -489,6 +608,16 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("missing_wheel_note=no amlnn_edge_toolkit_lite wheel found under setup dir; pass --setup-dir or --wheel for the SDK/package directory")
     if not camera_ready:
         print("missing_camera_note=no /dev/video* devices found")
+    if not WHISPER_SCRIPT.exists():
+        print(f"missing_whisper_script_note=expected bundled Whisper script at {WHISPER_SCRIPT}")
+    if not whisper_encoder.is_file():
+        print(f"missing_whisper_encoder_note=expected Whisper encoder at {whisper_encoder}")
+    if not whisper_decoder.is_file():
+        print(f"missing_whisper_decoder_note=expected Whisper decoder at {whisper_decoder}")
+    if not whisper_tokenizer.is_dir():
+        print(f"missing_whisper_tokenizer_note=expected Whisper tokenizer at {whisper_tokenizer}")
+    if arecord is None:
+        print("missing_arecord_note=install alsa-utils for real-time microphone capture")
     return 0
 
 
@@ -500,6 +629,7 @@ def cmd_commands(args: argparse.Namespace) -> int:
     print("image_command=" + cmd_image(args))
     print("usb_camera_command=" + cmd_usb(args))
     print("usb_camera_spi_lcd_command=" + cmd_usb_camera_spi_lcd(args))
+    print("whisper_microphone_command=" + cmd_whisper_microphone(args))
     return 0
 
 
@@ -551,6 +681,26 @@ def add_spi_lcd_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--log", action="store_true")
 
 
+def add_whisper_asset_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--whisper-encoder", type=Path, default=None)
+    parser.add_argument("--whisper-decoder", type=Path, default=None)
+    parser.add_argument("--whisper-tokenizer", type=Path, default=None)
+
+
+def add_whisper_language_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--language", default="auto")
+
+
+def add_whisper_microphone_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--device", default="hw:0,3")
+    parser.add_argument("--capture-rate", type=int, default=48000)
+    parser.add_argument("--capture-channels", type=int, default=6)
+    parser.add_argument("--mic-channel", default="0")
+    parser.add_argument("--silence-ms", type=int, default=1000)
+    parser.add_argument("--max-utterance-seconds", type=float, default=15.0)
+    parser.add_argument("--energy-threshold", type=float, default=0.0)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -561,6 +711,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_inference_args(status)
     add_image_args(status)
     add_spi_lcd_args(status)
+    add_whisper_asset_args(status)
     status.set_defaults(func=cmd_status)
 
     setup = subparsers.add_parser("setup-commands", help="print conda setup commands for the VIM 5 NPU Python environment")
@@ -575,6 +726,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_image_args(commands)
     add_usb_args(commands)
     add_spi_lcd_args(commands)
+    add_whisper_asset_args(commands)
+    add_whisper_language_arg(commands)
+    add_whisper_microphone_args(commands)
     commands.set_defaults(func=cmd_commands)
 
     image = subparsers.add_parser("image-command", help="print the bundled YOLOv8n image inference command")
@@ -598,6 +752,26 @@ def build_parser() -> argparse.ArgumentParser:
     add_usb_args(usb_camera_spi_lcd, display_default="off")
     add_spi_lcd_args(usb_camera_spi_lcd)
     usb_camera_spi_lcd.set_defaults(func=lambda args: print(cmd_usb_camera_spi_lcd(args)) or 0)
+
+    whisper_file = subparsers.add_parser(
+        "whisper-file-command",
+        help="print the bundled Whisper audio-file inference command",
+    )
+    add_runtime_args(whisper_file)
+    add_whisper_asset_args(whisper_file)
+    add_whisper_language_arg(whisper_file)
+    whisper_file.add_argument("--audio-file", type=Path, required=True)
+    whisper_file.set_defaults(func=lambda args: print(cmd_whisper_file(args)) or 0)
+
+    whisper_microphone = subparsers.add_parser(
+        "whisper-microphone-command",
+        help="print the bundled Whisper real-time microphone command",
+    )
+    add_runtime_args(whisper_microphone)
+    add_whisper_asset_args(whisper_microphone)
+    add_whisper_language_arg(whisper_microphone)
+    add_whisper_microphone_args(whisper_microphone)
+    whisper_microphone.set_defaults(func=lambda args: print(cmd_whisper_microphone(args)) or 0)
 
     return parser
 

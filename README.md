@@ -55,9 +55,11 @@ skills/
         ├── agents/
         │   └── openai.yaml
         ├── references/
+        │   ├── vim-5-npu-whisper.md
         │   └── vim-5-npu-yolov8n.md
         ├── scripts/
         │   ├── vim-5_npu_status.py
+        │   ├── vim-5_whisper.py
         │   ├── vim_5_yolov8n_core.py
         │   ├── vim_5_yolov8n_video.py
         │   ├── vim_5_yolov8n_spi_lcd.py
@@ -65,6 +67,7 @@ skills/
         │   ├── vim-5_yolov8n_usb_camera.py
         │   └── vim-5_yolov8n_usb_camera_spi_lcd.py
         └── assets/
+            ├── whisper/
             └── yolov8n/
 ```
 
@@ -188,6 +191,10 @@ Coverage:
 - Bundled YOLOv8n ADLA image inference script
 - YOLOv8n USB camera inference with `/dev/video*` discovery
 - YOLOv8n USB camera input with detection summaries rendered on the VIM 5 expansion-board SPI LCD
+- Bundled Whisper Encoder/Decoder ADLA models and local tokenizer
+- Whisper audio-file and endpointed real-time microphone transcription
+- Automatic spoken-language detection or fixed-language decoding
+- PDM Mic Array (`hw:0,3`, 48 kHz, 6ch) and analog MIC (`hw:0,1`, 44.1 kHz, 2ch) capture profiles
 - No hard-coded external reference-code paths
 
 ## Installation

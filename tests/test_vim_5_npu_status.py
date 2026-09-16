@@ -135,6 +135,56 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn(f"--model-path {model}", command)
         self.assertIn(f"--image-dir {image_dir}", command)
 
+    def test_whisper_file_command_uses_bundled_assets_and_auto_language(self):
+        args = vim_5_npu_status.build_parser().parse_args(
+            [
+                "whisper-file-command",
+                "--conda",
+                "conda",
+                "--audio-file",
+                "/tmp/speech.wav",
+            ]
+        )
+
+        command = vim_5_npu_status.cmd_whisper_file(args)
+
+        self.assertIn("conda run -n amlnnlite_py310 python", command)
+        self.assertIn(str(vim_5_npu_status.WHISPER_SCRIPT), command)
+        self.assertIn(f"--enc {vim_5_npu_status.BUNDLED_WHISPER_ENCODER}", command)
+        self.assertIn(f"--dec {vim_5_npu_status.BUNDLED_WHISPER_DECODER}", command)
+        self.assertIn(f"--tokenizer {vim_5_npu_status.BUNDLED_WHISPER_TOKENIZER}", command)
+        self.assertIn("--audio-file /tmp/speech.wav", command)
+        self.assertIn("--language auto", command)
+
+    def test_whisper_microphone_command_supports_analog_mic_parameters(self):
+        args = vim_5_npu_status.build_parser().parse_args(
+            [
+                "whisper-microphone-command",
+                "--conda",
+                "conda",
+                "--device",
+                "hw:0,1",
+                "--capture-rate",
+                "44100",
+                "--capture-channels",
+                "2",
+                "--mic-channel",
+                "mix",
+                "--language",
+                "auto",
+            ]
+        )
+
+        command = vim_5_npu_status.cmd_whisper_microphone(args)
+
+        self.assertIn(str(vim_5_npu_status.WHISPER_SCRIPT), command)
+        self.assertIn("--microphone", command)
+        self.assertIn("--device hw:0,1", command)
+        self.assertIn("--capture-rate 44100", command)
+        self.assertIn("--capture-channels 2", command)
+        self.assertIn("--mic-channel mix", command)
+        self.assertIn("--language auto", command)
+
     def test_status_reports_bundled_assets_and_no_reference_path(self):
         args = vim_5_npu_status.build_parser().parse_args(["status", "--conda", "conda"])
         stream = io.StringIO()
@@ -161,6 +211,17 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn(f"usb_camera_spi_lcd_script=ready:{vim_5_npu_status.USB_CAMERA_SPI_LCD_SCRIPT}", text)
         self.assertIn(f"spi_lcd_module=ready:{vim_5_npu_status.SPI_LCD_MODULE}", text)
         self.assertIn(f"bundled_adla_model=ready:{vim_5_npu_status.BUNDLED_ADLA_MODEL}", text)
+        self.assertIn(f"whisper_script=ready:{vim_5_npu_status.WHISPER_SCRIPT}", text)
+        self.assertIn(
+            f"bundled_whisper_encoder=ready:{vim_5_npu_status.BUNDLED_WHISPER_ENCODER}",
+            text,
+        )
+        self.assertIn(
+            f"bundled_whisper_decoder=ready:{vim_5_npu_status.BUNDLED_WHISPER_DECODER}",
+            text,
+        )
+        self.assertIn("module_transformers=missing", text)
+        self.assertIn("module_librosa=missing", text)
         self.assertIn(f"selected_model_path={vim_5_npu_status.BUNDLED_ADLA_MODEL}", text)
         self.assertIn("npu_runtime_probe=missing:adla device not found", text)
         self.assertIn("adla_device_nodes=/dev/adla0", text)
@@ -170,6 +231,8 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("missing_npu_runtime_note=AMLNNLite could not initialize", text)
         self.assertIn("missing_camera_note=no /dev/video* devices found", text)
         self.assertIn("yolov8n_usb_camera_spi_lcd_ready=no", text)
+        self.assertIn("whisper_file_ready=no", text)
+        self.assertIn("whisper_microphone_ready=no", text)
 
     def test_setup_commands_match_amlnnlite_py310_install_flow(self):
         args = vim_5_npu_status.build_parser().parse_args(
@@ -187,6 +250,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertEqual(lines[0], "conda create -n amlnnlite_py310 python=3.10 -y")
         self.assertIn("conda activate amlnnlite_py310", lines)
         self.assertIn("for req in $(cat /sdk/requirements.txt); do pip install $req; done", lines)
+        self.assertIn("pip install transformers librosa", lines)
         self.assertIn("pip install opencv-python /sdk/amlnn_edge_toolkit_lite-*-linux_aarch64.whl", lines)
 
     def test_conda_auto_detects_common_install_path(self):

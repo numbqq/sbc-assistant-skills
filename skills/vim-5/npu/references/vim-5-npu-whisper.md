@@ -10,6 +10,9 @@
 
 ```text
 scripts/vim-5_whisper.py
+assets/whisper/bin/whisper_demo
+assets/whisper/data_bin/data.bin
+assets/whisper/data_bin/tokenizer_info.bin
 assets/whisper/model/whisper_encoder_static_sim_w8a16.adla
 assets/whisper/model/whisper_decoder_static_sim_w8a16.adla
 assets/whisper/tokenizer/
@@ -19,6 +22,9 @@ assets/whisper/LICENSE.openai.txt
 The script first tries `amlnnlite.api.AMLNNLite` and falls back to
 `amlnn.api.AMLNN`. It loads the local tokenizer with
 `local_files_only=True`, so normal inference does not require network access.
+The ARM64 `whisper_demo` binary and `data_bin` files provide the machine-readable
+JSONL producer used by Picoclaw's `local_voice` channel. Run it with
+`assets/whisper/` as its working directory so no source checkout path is needed.
 
 ## Dependencies
 

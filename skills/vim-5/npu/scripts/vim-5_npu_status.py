@@ -31,6 +31,9 @@ USB_CAMERA_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera.py"
 USB_CAMERA_SPI_LCD_SCRIPT = SCRIPT_DIR / "vim-5_yolov8n_usb_camera_spi_lcd.py"
 WHISPER_SCRIPT = SCRIPT_DIR / "vim-5_whisper.py"
 WHISPER_ASSET_ROOT = ASSET_ROOT / "whisper"
+BUNDLED_WHISPER_DEMO = WHISPER_ASSET_ROOT / "bin" / "whisper_demo"
+BUNDLED_WHISPER_DATA = WHISPER_ASSET_ROOT / "data_bin" / "data.bin"
+BUNDLED_WHISPER_TOKENIZER_INFO = WHISPER_ASSET_ROOT / "data_bin" / "tokenizer_info.bin"
 BUNDLED_WHISPER_ENCODER = (
     WHISPER_ASSET_ROOT / "model" / "whisper_encoder_static_sim_w8a16.adla"
 )
@@ -462,6 +465,9 @@ def print_path_checks() -> None:
         path_check("usb_camera_script", USB_CAMERA_SCRIPT),
         path_check("usb_camera_spi_lcd_script", USB_CAMERA_SPI_LCD_SCRIPT),
         path_check("whisper_script", WHISPER_SCRIPT),
+        path_check("bundled_whisper_demo", BUNDLED_WHISPER_DEMO),
+        path_check("bundled_whisper_data", BUNDLED_WHISPER_DATA),
+        path_check("bundled_whisper_tokenizer_info", BUNDLED_WHISPER_TOKENIZER_INFO),
         path_check("bundled_adla_model", BUNDLED_ADLA_MODEL),
         path_check("bundled_image_dir", BUNDLED_IMAGE_DIR),
         path_check("bundled_test_image", BUNDLED_TEST_IMAGE),
@@ -571,6 +577,14 @@ def cmd_status(args: argparse.Namespace) -> int:
         and whisper_decoder.is_file()
         and whisper_tokenizer.is_dir()
     )
+    picoclaw_local_voice_ready = (
+        os.access(BUNDLED_WHISPER_DEMO, os.X_OK)
+        and BUNDLED_WHISPER_DATA.is_file()
+        and BUNDLED_WHISPER_TOKENIZER_INFO.is_file()
+        and BUNDLED_WHISPER_ENCODER.is_file()
+        and BUNDLED_WHISPER_DECODER.is_file()
+        and arecord is not None
+    )
     spi_lcd_ready = (
         SPI_LCD_MODULE.exists()
         and spi_lcd_helper is not None
@@ -618,6 +632,7 @@ def cmd_status(args: argparse.Namespace) -> int:
             else "no"
         )
     )
+    print(f"picoclaw_local_voice_ready={'yes' if picoclaw_local_voice_ready else 'no'}")
 
     if runtime_state.startswith("missing"):
         print(f"missing_runtime_note=create/activate conda env {args.conda_env} and install amlnn_edge_toolkit_lite wheel")
@@ -671,6 +686,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"missing_whisper_decoder_note=expected Whisper decoder at {whisper_decoder}")
     if not whisper_tokenizer.is_dir():
         print(f"missing_whisper_tokenizer_note=expected Whisper tokenizer at {whisper_tokenizer}")
+    if not os.access(BUNDLED_WHISPER_DEMO, os.X_OK):
+        print(f"missing_whisper_demo_note=expected executable VIM 5 ARM64 runtime at {BUNDLED_WHISPER_DEMO}")
+    if not BUNDLED_WHISPER_DATA.is_file() or not BUNDLED_WHISPER_TOKENIZER_INFO.is_file():
+        print(f"missing_whisper_data_bin_note=expected C++ runtime data under {BUNDLED_WHISPER_DATA.parent}")
     if arecord is None:
         print("missing_arecord_note=install alsa-utils for real-time microphone capture")
     if amixer is None:

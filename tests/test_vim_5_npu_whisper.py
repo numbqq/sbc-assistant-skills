@@ -1,3 +1,4 @@
+import os
 import unittest
 from pathlib import Path
 
@@ -17,9 +18,15 @@ class VimFiveNpuWhisperTest(unittest.TestCase):
         encoder = WHISPER_ASSETS / "model" / "whisper_encoder_static_sim_w8a16.adla"
         decoder = WHISPER_ASSETS / "model" / "whisper_decoder_static_sim_w8a16.adla"
         tokenizer = WHISPER_ASSETS / "tokenizer"
+        runtime = WHISPER_ASSETS / "bin" / "whisper_demo"
+        data_bin = WHISPER_ASSETS / "data_bin"
 
         self.assertGreater(encoder.stat().st_size, 1_000_000)
         self.assertGreater(decoder.stat().st_size, 1_000_000)
+        self.assertGreater(runtime.stat().st_size, 100_000)
+        self.assertTrue(os.access(runtime, os.X_OK))
+        self.assertTrue((data_bin / "data.bin").is_file())
+        self.assertTrue((data_bin / "tokenizer_info.bin").is_file())
         self.assertTrue((tokenizer / "tokenizer.json").is_file())
         self.assertTrue((tokenizer / "preprocessor_config.json").is_file())
         self.assertTrue((WHISPER_ASSETS / "LICENSE.openai.txt").is_file())

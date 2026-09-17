@@ -252,6 +252,19 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn(f"bundled_adla_model=ready:{vim_5_npu_status.BUNDLED_ADLA_MODEL}", text)
         self.assertIn(f"whisper_script=ready:{vim_5_npu_status.WHISPER_SCRIPT}", text)
         self.assertIn(
+            f"bundled_whisper_demo=ready:{vim_5_npu_status.BUNDLED_WHISPER_DEMO}",
+            text,
+        )
+        self.assertIn(
+            f"bundled_whisper_data=ready:{vim_5_npu_status.BUNDLED_WHISPER_DATA}",
+            text,
+        )
+        self.assertIn(
+            "bundled_whisper_tokenizer_info=ready:"
+            f"{vim_5_npu_status.BUNDLED_WHISPER_TOKENIZER_INFO}",
+            text,
+        )
+        self.assertIn(
             f"bundled_whisper_encoder=ready:{vim_5_npu_status.BUNDLED_WHISPER_ENCODER}",
             text,
         )
@@ -272,6 +285,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("yolov8n_usb_camera_spi_lcd_ready=no", text)
         self.assertIn("whisper_file_ready=no", text)
         self.assertIn("whisper_microphone_ready=no", text)
+        self.assertIn("picoclaw_local_voice_ready=", text)
         self.assertIn("analog_mic_required_overlay=ext-board-codec", text)
         self.assertIn(
             "analog_mic_route_command=amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'",

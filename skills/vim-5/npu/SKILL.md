@@ -18,6 +18,7 @@ Supported initial target:
 - YOLOv8n ADLA USB camera inference with `scripts/vim-5_yolov8n_usb_camera.py`
 - YOLOv8n ADLA USB camera input with VIM 5 expansion-board SPI LCD summaries using `scripts/vim-5_yolov8n_usb_camera_spi_lcd.py`
 - Whisper ADLA file transcription and endpointed real-time microphone transcription with `scripts/vim-5_whisper.py`
+- Picoclaw local voice input with the bundled VIM 5 ARM64 JSONL runtime at `assets/whisper/bin/whisper_demo`
 - Automatic Whisper language detection or an explicitly selected language such as `zh` or `en`
 - VIM 5 PDM Mic Array capture from `hw:0,3` and analog MIC capture from `hw:0,1`
 - Conda Python environment setup and runtime checks for `amlnnlite`, `cv2`, `numpy`, `transformers`, `librosa`, `.adla` model files, bundled scripts and assets, `/dev/video*`, and `arecord`
@@ -38,12 +39,19 @@ scripts/vim-5_yolov8n_usb_camera.py
 scripts/vim-5_yolov8n_usb_camera_spi_lcd.py
 scripts/vim-5_whisper.py
 scripts/vim-5_npu_status.py
+assets/whisper/bin/whisper_demo
+assets/whisper/data_bin/data.bin
+assets/whisper/data_bin/tokenizer_info.bin
 assets/yolov8n/model/yolov8n_rawhead_w8a8_a311y3.adla
 assets/yolov8n/input/test_image.png
 assets/whisper/model/whisper_encoder_static_sim_w8a16.adla
 assets/whisper/model/whisper_decoder_static_sim_w8a16.adla
 assets/whisper/tokenizer/
 ```
+
+The files below `assets/whisper/` form a self-contained runtime for Picoclaw's
+`local_voice` channel. Use the installed skill directory as the process working
+directory; do not point runtime configuration at a Whisper source checkout.
 
 Generated inference commands use the bundled scripts and bundled assets by default. Override asset paths only when the user explicitly wants to run a different model, tokenizer, image set, or audio file.
 
@@ -162,6 +170,27 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
 ## Whisper real-time microphone transcription
 
 Whisper uses a fixed 30-second encoder input, but the bundled script pads short utterances and emits finalized text after a silence boundary. It keeps both NPU models loaded and continues capturing audio while inference runs. This is endpointed utterance streaming, not token-by-token streaming.
+
+For Picoclaw `local_voice`, run the bundled JSONL producer from
+`assets/whisper/`:
+
+```bash
+./bin/whisper_demo \
+  --enc ./model/whisper_encoder_static_sim_w8a16.adla \
+  --dec ./model/whisper_decoder_static_sim_w8a16.adla \
+  --data-bin-dir ./data_bin \
+  --microphone \
+  --device hw:0,3 \
+  --capture-rate 48000 \
+  --capture-channels 6 \
+  --mic-channel 0 \
+  --language zh \
+  --output-format jsonl
+```
+
+The installed asset root is normally
+`~/.picoclaw/workspace/skills/khadas-vim-5-npu/assets/whisper`. The executable is
+for VIM 5 ARM64 and dynamically uses the board's `libnnsdk.so`.
 
 For the six-channel PDM Mic Array (`arecord -D hw:0,3 -r 48000 -f S16_LE -c 6`):
 

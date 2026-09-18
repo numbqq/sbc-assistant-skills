@@ -28,6 +28,20 @@ JSONL producer used by Picoclaw's `local_voice` channel. Run it with
 
 ## Dependencies
 
+The bundled C++ binary (used by Picoclaw) requires the board's `libnnsdk.so`
+and Debian 12 `libopencc1.1` with its dictionary dependencies:
+
+```bash
+sudo apt-get install libopencc1.1
+```
+
+Add `--chinese-script simplified` to C++ commands to convert decoded `zh`/`yue`
+text with OpenCC `t2s.json`; `--chinese-script raw` is the standalone CLI default.
+Both text and JSONL, file and microphone input are supported. Vibe's voice
+configuration defaults to simplified. `--language zh` alone does not select a
+writing system. Conversion changes script only; it cannot fix homophones or
+other ASR mistakes. The Python example retains the model's raw output.
+
 Check the target environment rather than system Python:
 
 ```bash

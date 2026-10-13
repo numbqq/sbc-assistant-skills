@@ -34,15 +34,19 @@ it is also available for manual verification/recovery.
 
 Stop the existing Gateway/Whisper/ASR first, then run from the asset directory:
 
+Use the ALSA card ID `AMLAUGESOUND` shown in `/proc/asound/cards`, rather than
+numeric `hw:0,3`: a USB camera's microphone may change the numeric card order
+on reboot. `DEV=3` still selects PDM; `--mic-channel 2` selects its audio channel.
+
 ```bash
-bash run.sh --device hw:0,3 --capture-rate 48000 --capture-channels 6 \
+bash run.sh --device hw:CARD=AMLAUGESOUND,DEV=3 --capture-rate 48000 --capture-channels 6 \
   --mic-channel 2 --language zh
 ```
 
 Wait for `[ready] Listening`, then speak and pause. `[preview]` can be revised;
 `[transcription]` is final. Ctrl+C releases the microphone. PDM channel 2 was
 verified on the current VIM 5; channels 0/1 were almost all zero. Confirm the
-mapping on other arrays. Analog `hw:0,1` needs the expansion-board overlay and
+mapping on other arrays. Analog `hw:CARD=AMLAUGESOUND,DEV=1` needs the expansion-board overlay and
 ALSA route described in the Whisper reference, and uses 44100 Hz / 2ch /
 channel 0. `--language zh|en|auto`, `--step-ms 1000`, `--silence-ms 600`, and
 `--speech-threshold 0.003` can be configured; see `bash run.sh --help`.

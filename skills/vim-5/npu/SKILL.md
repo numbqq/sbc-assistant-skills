@@ -21,7 +21,7 @@ Supported initial target:
 - Picoclaw local voice input with the bundled VIM 5 ARM64 JSONL runtime at `assets/whisper/bin/whisper_demo`
 - AML ASR SDK 3.1.2 real-time transcription and Picoclaw JSONL input with `assets/aml-asr/run.sh`
 - Automatic Whisper language detection or an explicitly selected language such as `zh` or `en`
-- VIM 5 PDM Mic Array capture from `hw:0,3` and analog MIC capture from `hw:0,1`
+- VIM 5 PDM Mic Array capture from `hw:CARD=AMLAUGESOUND,DEV=3` and analog MIC capture from `hw:CARD=AMLAUGESOUND,DEV=1`
 - Conda Python environment setup and runtime checks for `amlnnlite`, `cv2`, `numpy`, `transformers`, `librosa`, `.adla` model files, bundled scripts and assets, `/dev/video*`, and `arecord`
 - ADLA device visibility checks for `/dev/adla*` and `/sys/class/adla/adla*`
 
@@ -93,8 +93,8 @@ Before running NPU inference:
 6. For USB camera inference, check `ls -l /dev/video*` and verify the selected camera can produce frames.
 7. For USB camera + SPI LCD summaries, check `/dev/spidev1.0`, `spidev`, and either `gpiod` or `gpioset`. The combined program must run in a Python environment that can import both `amlnnlite` and `spidev`.
 8. For real-time Whisper, check `arecord -l`; use the hardware rate and channel count for the selected ALSA device.
-9. Before using analog MIC `hw:0,1`, require the expansion board to be connected and `fdt_overlays=ext-board-codec` to be active in `/boot/dtb/amlogic/kvim-5.dtb.overlay.env` after a reboot. Do not start analog capture when this precondition is unmet.
-10. Before every `hw:0,1` capture session, configure the route with exactly `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`. Stop if this command fails.
+9. Before using analog MIC `hw:CARD=AMLAUGESOUND,DEV=1`, require the expansion board to be connected and `fdt_overlays=ext-board-codec` to be active in `/boot/dtb/amlogic/kvim-5.dtb.overlay.env` after a reboot. Do not start analog capture when this precondition is unmet.
+10. Before every `hw:CARD=AMLAUGESOUND,DEV=1` capture session, configure the route with exactly `amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'`. Stop if this command fails.
 11. If imports fail, diagnose the `amlnnlite_py310` conda environment and wheel installation before trying system Python or apt packages.
 
 Use the bundled status helper:
@@ -186,7 +186,7 @@ For Picoclaw `local_voice`, run the bundled JSONL producer from
   --dec ./model/whisper_decoder_static_sim_w8a16.adla \
   --data-bin-dir ./data_bin \
   --microphone \
-  --device hw:0,3 \
+  --device hw:CARD=AMLAUGESOUND,DEV=3 \
   --capture-rate 48000 \
   --capture-channels 6 \
   --mic-channel 2 \
@@ -198,7 +198,7 @@ The installed asset root is normally
 `~/.picoclaw/workspace/skills/khadas-vim-5-npu/assets/whisper`. The executable is
 for VIM 5 ARM64 and dynamically uses the board's `libnnsdk.so`.
 
-For the six-channel PDM Mic Array (`arecord -D hw:0,3 -r 48000 -f S16_LE -c 6`):
+For the six-channel PDM Mic Array (`arecord -D hw:CARD=AMLAUGESOUND,DEV=3 -r 48000 -f S16_LE -c 6`):
 
 ```bash
 conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
@@ -206,27 +206,27 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
   --dec assets/whisper/model/whisper_decoder_static_sim_w8a16.adla \
   --tokenizer assets/whisper/tokenizer \
   --microphone \
-  --device hw:0,3 \
+  --device hw:CARD=AMLAUGESOUND,DEV=3 \
   --capture-rate 48000 \
   --capture-channels 6 \
   --mic-channel 2 \
   --language auto
 ```
 
-The two-channel analog MIC is not usable from `hw:0,1` until all of these conditions are met:
+The two-channel analog MIC is not usable from `hw:CARD=AMLAUGESOUND,DEV=1` until all of these conditions are met:
 
 - The VIM 5 expansion board is connected.
 - `/boot/dtb/amlogic/kvim-5.dtb.overlay.env` contains `fdt_overlays=ext-board-codec`, and the board has rebooted after that change.
 - The capture route is configured before recording:
 
 ```bash
-amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'
+amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'
 ```
 
-Only after the route command succeeds, use the analog MIC capture settings (`arecord -D hw:0,1 -f cd -c 2`, where `cd` means S16_LE/44100 Hz/stereo):
+Only after the route command succeeds, use the analog MIC capture settings (`arecord -D hw:CARD=AMLAUGESOUND,DEV=1 -f cd -c 2`, where `cd` means S16_LE/44100 Hz/stereo):
 
 ```bash
---device hw:0,1 --capture-rate 44100 --capture-channels 2 --mic-channel 0
+--device hw:CARD=AMLAUGESOUND,DEV=1 --capture-rate 44100 --capture-channels 2 --mic-channel 0
 ```
 
 Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to average all captured channels. Keep quiet during the initial ambient-noise calibration. For faster finalization, reduce `--silence-ms` from 1000 to about 700; if speech is missed, lower `--energy-threshold` or `--min-energy-threshold` carefully.
@@ -257,7 +257,7 @@ Do not substitute an old AML ASR binary without JSONL sequence support;
 - If `ModuleNotFoundError: cv2` appears, install `opencv-python` inside `amlnnlite_py310`.
 - If `ModuleNotFoundError: transformers` or `librosa` appears, install both inside `amlnnlite_py310`.
 - If `arecord` is missing, install `alsa-utils`. If capture fails, verify the selected device with `arecord -l` and do not substitute 16 kHz/mono values for hardware devices that require 48 kHz/6ch or 44.1 kHz/2ch.
-- If analog MIC `hw:0,1` is unavailable or silent, first verify `ext-board-codec` is the active overlay after reboot, then rerun `amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'`. Do not treat VAD tuning as a substitute for these hardware-routing requirements.
+- If analog MIC `hw:CARD=AMLAUGESOUND,DEV=1` is unavailable or silent, first verify `ext-board-codec` is the active overlay after reboot, then rerun `amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'`. Do not treat VAD tuning as a substitute for these hardware-routing requirements.
 - If Whisper never reports `Speech detected`, keep quiet during calibration, select another channel, or lower the RMS threshold. If noise triggers recognition repeatedly, raise the threshold.
 - If Whisper produces unstable language results for very short or mixed-language speech, use a fixed `--language` value or speak a longer utterance.
 - If `ModuleNotFoundError: spidev` appears in the USB camera + SPI LCD app, install `spidev` into the same Python environment that runs `amlnnlite`, for example `conda run -n amlnnlite_py310 pip install spidev`.

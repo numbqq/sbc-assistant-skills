@@ -15,7 +15,8 @@ are needed at runtime. The board supplies NPU drivers, libnnsdk/libadla, and
 - `assemble-model.sh`: verifies parts and assembles the model atomically.
 - `SHA256SUMS.txt`: bundled binary, libraries, sample and model-part hashes.
 - `SOURCE_SHA256SUMS.txt`: source hashes for the packaged binary, built from the
-  `aml-asr` repository's `c54d7c52c39be5b3694e8803850f8064bc045bdc`.
+  `aml-asr` sources based on `c54d7c52c39be5b3694e8803850f8064bc045bdc`
+  plus named ALSA PDM/analog device support; the manifest identifies the exact files.
 
 `scripts/install.sh` automatically verifies the parts and assembles the model
 when installing or reinstalling this skill. Preparation happens before the
@@ -33,6 +34,11 @@ numbers start at 1 for each process. `language` records the configured language
 (`auto` does not claim a detected language), and confidence/duration are null
 because the SDK interface does not provide them. `audio_seconds` is cumulative
 processed capture time, not per-utterance duration.
+
+PDM defaults to `hw:CARD=AMLAUGESOUND,DEV=3` (48000 Hz, 6ch, channel 2).
+Analog `--device hw:CARD=AMLAUGESOUND,DEV=1` selects 44100 Hz, 2ch, channel 0
+and requires the `ext-board-codec` overlay plus `amixer -c AMLAUGESOUND` routing.
+Named addresses do not change when USB audio changes the card numbering.
 
 The vendor SDK/model are supplied as-is; no new open-source license is assigned
 to them. SDK provenance: Linux ARM64 3.1.2, build 2026-10-10, cid a2002e8e9.

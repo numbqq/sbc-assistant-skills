@@ -163,7 +163,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
                 "--conda",
                 "conda",
                 "--device",
-                "hw:0,1",
+                "hw:CARD=AMLAUGESOUND,DEV=1",
                 "--capture-rate",
                 "44100",
                 "--capture-channels",
@@ -181,7 +181,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn(" && conda run -n amlnnlite_py310 python", command)
         self.assertIn(str(vim_5_npu_status.WHISPER_SCRIPT), command)
         self.assertIn("--microphone", command)
-        self.assertIn("--device hw:0,1", command)
+        self.assertIn("--device hw:CARD=AMLAUGESOUND,DEV=1", command)
         self.assertIn("--capture-rate 44100", command)
         self.assertIn("--capture-channels 2", command)
         self.assertIn("--mic-channel mix", command)
@@ -195,9 +195,22 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         command = vim_5_npu_status.cmd_whisper_microphone(args)
 
         self.assertNotIn("amixer", command)
-        self.assertIn("--device hw:0,3", command)
+        self.assertIn("--device hw:CARD=AMLAUGESOUND,DEV=3", command)
         self.assertIn("--capture-rate 48000", command)
         self.assertIn("--capture-channels 6", command)
+
+    def test_analog_named_aliases_and_legacy_number_use_matching_mixer(self):
+        for device in ("hw:AMLAUGESOUND,1", "plughw:CARD=AMLAUGESOUND,DEV=1", "hw:0,1"):
+            with self.subTest(device=device):
+                args = vim_5_npu_status.build_parser().parse_args(
+                    ["whisper-microphone-command", "--device", device])
+                command = vim_5_npu_status.cmd_whisper_microphone(args)
+                card = "0" if device == "hw:0,1" else "AMLAUGESOUND"
+                self.assertTrue(command.startswith(f"amixer -c {card} cset "))
+                self.assertIn(" && ", command)
+                self.assertIn(f"--device {device}", command)
+                self.assertIn("--capture-rate 44100", command)
+                self.assertIn("--capture-channels 2", command)
 
     def test_overlay_state_requires_ext_board_codec(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -288,7 +301,7 @@ class VimFiveNpuStatusTest(unittest.TestCase):
         self.assertIn("picoclaw_local_voice_ready=", text)
         self.assertIn("analog_mic_required_overlay=ext-board-codec", text)
         self.assertIn(
-            "analog_mic_route_command=amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'",
+            "analog_mic_route_command=amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'",
             text,
         )
         self.assertIn("whisper_analog_microphone_ready=no", text)

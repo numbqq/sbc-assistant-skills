@@ -69,12 +69,12 @@ Run from the installed `khadas-vim-5-npu` skill directory:
 scripts/vim-5_npu_status.py status
 scripts/vim-5_npu_status.py whisper-microphone-command
 scripts/vim-5_npu_status.py whisper-microphone-command \
-  --device hw:0,1 --capture-rate 44100 --capture-channels 2
+  --device hw:CARD=AMLAUGESOUND,DEV=1 --capture-rate 44100 --capture-channels 2
 scripts/vim-5_npu_status.py whisper-file-command --audio-file /path/to/audio.wav
 ```
 
 The helper emits a `conda run` command with absolute paths to the installed
-script, models, and tokenizer. For `hw:0,1`, it prefixes the command with the
+script, models, and tokenizer. For `hw:CARD=AMLAUGESOUND,DEV=1`, it prefixes the command with the
 required `amixer` route setup joined by `&&`, so Whisper does not start if route
 configuration fails. Execute the printed command on the VIM 5 host.
 
@@ -95,11 +95,16 @@ that extra decoder call and is usually more stable for short utterances.
 
 ## Real-time PDM Mic Array
 
+Use `hw:CARD=AMLAUGESOUND,DEV=3` for the PDM array. `AMLAUGESOUND` is the
+ALSA card ID from `/proc/asound/cards`, not the display name `AML-AUGESOUND`.
+USB cameras may change the numeric `hw:0,3` address to `hw:1,3` on reboot;
+the named address continues to select the board's PDM device.
+
 The VIM 5 Mic Array exposes six interleaved channels and must be opened with its
 hardware parameters:
 
 ```bash
-arecord -D hw:0,3 -r 48000 -f S16_LE -c 6 -d 5 /tmp/pdm-6ch.wav
+arecord -D hw:CARD=AMLAUGESOUND,DEV=3 -r 48000 -f S16_LE -c 6 -d 5 /tmp/pdm-6ch.wav
 ```
 
 Real-time automatic-language transcription:
@@ -110,7 +115,7 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
   --dec assets/whisper/model/whisper_decoder_static_sim_w8a16.adla \
   --tokenizer assets/whisper/tokenizer \
   --microphone \
-  --device hw:0,3 \
+  --device hw:CARD=AMLAUGESOUND,DEV=3 \
   --capture-rate 48000 \
   --capture-channels 6 \
   --mic-channel 0 \
@@ -135,10 +140,10 @@ Analog capture has mandatory hardware prerequisites:
 4. Before recording, set the capture route and stop if it fails:
 
 ```bash
-amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'
+amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'
 ```
 
-Do not start Whisper against `hw:0,1` until the Overlay is active after reboot
+Do not start Whisper against `hw:CARD=AMLAUGESOUND,DEV=1` until the Overlay is active after reboot
 and the route command succeeds. The `ext-board-codec` Overlay shares pins with
 I2S and SPI functions; avoid conflicting Overlays unless the mux configuration
 has been confirmed.
@@ -146,7 +151,7 @@ has been confirmed.
 Verify standalone recording before Whisper:
 
 ```bash
-arecord -D hw:0,1 -f cd -c 2 -d 5 /tmp/analog-mic.wav
+arecord -D hw:CARD=AMLAUGESOUND,DEV=1 -f cd -c 2 -d 5 /tmp/analog-mic.wav
 ```
 
 Use matching parameters for real-time recognition:
@@ -157,7 +162,7 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
   --dec assets/whisper/model/whisper_decoder_static_sim_w8a16.adla \
   --tokenizer assets/whisper/tokenizer \
   --microphone \
-  --device hw:0,1 \
+  --device hw:CARD=AMLAUGESOUND,DEV=1 \
   --capture-rate 44100 \
   --capture-channels 2 \
   --mic-channel 0 \
@@ -208,7 +213,7 @@ can produce unstable automatic detection.
    assets, `arecord`, or ADLA device access.
 2. Run file inference with a known WAV file and confirm text output.
 3. Run `arecord -l` and a short recording with the exact device parameters.
-4. For `hw:0,1`, verify `ext-board-codec` is active after reboot and run the
+4. For `hw:CARD=AMLAUGESOUND,DEV=1`, verify `ext-board-codec` is active after reboot and run the
    required `amixer` route command before the short recording.
 5. Start real-time inference, remain quiet during calibration, speak a sentence,
    then pause for at least `--silence-ms`.

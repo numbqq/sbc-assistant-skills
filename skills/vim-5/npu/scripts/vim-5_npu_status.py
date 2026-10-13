@@ -41,11 +41,12 @@ BUNDLED_WHISPER_DECODER = (
     WHISPER_ASSET_ROOT / "model" / "whisper_decoder_static_sim_w8a16.adla"
 )
 BUNDLED_WHISPER_TOKENIZER = WHISPER_ASSET_ROOT / "tokenizer"
-ANALOG_MIC_DEVICE = "hw:0,1"
+PDM_MIC_DEVICE = "hw:CARD=AMLAUGESOUND,DEV=3"
+ANALOG_MIC_DEVICE = "hw:CARD=AMLAUGESOUND,DEV=1"
 ANALOG_MIC_REQUIRED_OVERLAY = "ext-board-codec"
 ANALOG_MIC_OVERLAY_CONFIG = Path("/boot/dtb/amlogic/kvim-5.dtb.overlay.env")
 ANALOG_MIC_ROUTE_COMMAND = (
-    "amixer -c 0 cset name='TDMIN_B source select' 'tdmin_b'"
+    "amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'"
 )
 REPO_SPI_LCD_HELPER = SKILL_ROOT.parent / "hardware-control" / "scripts" / "spi_lcd_st7735.py"
 INSTALLED_SPI_LCD_HELPER = (
@@ -427,6 +428,10 @@ def cmd_whisper_file(args: argparse.Namespace) -> str:
 
 
 def cmd_whisper_microphone(args: argparse.Namespace) -> str:
+    analog = args.device in (ANALOG_MIC_DEVICE, "hw:AMLAUGESOUND,1", "hw:0,1",
+                            "plughw:CARD=AMLAUGESOUND,DEV=1", "plughw:AMLAUGESOUND,1")
+    rate = args.capture_rate if args.capture_rate is not None else (44100 if analog else 48000)
+    channels = args.capture_channels if args.capture_channels is not None else (2 if analog else 6)
     parts = whisper_command_prefix(args)
     parts.extend(
         [
@@ -434,9 +439,9 @@ def cmd_whisper_microphone(args: argparse.Namespace) -> str:
             "--device",
             q(args.device),
             "--capture-rate",
-            q(args.capture_rate),
+            q(rate),
             "--capture-channels",
-            q(args.capture_channels),
+            q(channels),
             "--mic-channel",
             q(args.mic_channel),
             "--language",
@@ -450,8 +455,11 @@ def cmd_whisper_microphone(args: argparse.Namespace) -> str:
     if args.energy_threshold > 0:
         parts.extend(["--energy-threshold", q(args.energy_threshold)])
     command = " ".join(parts)
-    if args.device == ANALOG_MIC_DEVICE:
+    if analog and args.device != "hw:0,1":
         return f"{ANALOG_MIC_ROUTE_COMMAND} && {command}"
+    if args.device == "hw:0,1":
+        # Preserve the explicit legacy numeric address and its matching mixer.
+        return f"{ANALOG_MIC_ROUTE_COMMAND.replace('-c AMLAUGESOUND', '-c 0')} && {command}"
     return command
 
 
@@ -773,9 +781,9 @@ def add_whisper_language_arg(parser: argparse.ArgumentParser) -> None:
 
 
 def add_whisper_microphone_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--device", default="hw:0,3")
-    parser.add_argument("--capture-rate", type=int, default=48000)
-    parser.add_argument("--capture-channels", type=int, default=6)
+    parser.add_argument("--device", default=PDM_MIC_DEVICE)
+    parser.add_argument("--capture-rate", type=int, default=None)
+    parser.add_argument("--capture-channels", type=int, default=None)
     parser.add_argument("--mic-channel", default="0")
     parser.add_argument("--silence-ms", type=int, default=1000)
     parser.add_argument("--max-utterance-seconds", type=float, default=15.0)

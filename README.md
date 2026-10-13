@@ -67,6 +67,7 @@ skills/
         │   ├── vim-5_yolov8n_usb_camera.py
         │   └── vim-5_yolov8n_usb_camera_spi_lcd.py
         └── assets/
+            ├── aml-asr/            # ARM64 runtime, SDK libs and model parts
             ├── whisper/
             └── yolov8n/
 ```

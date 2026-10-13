@@ -1,4 +1,4 @@
 interface:
   display_name: "VIM 5 NPU"
-  short_description: "VIM 5 NPU helper for YOLOv8n and real-time Whisper."
-  default_prompt: "Use $khadas-vim-5-npu to run or troubleshoot bundled YOLOv8n vision inference or Whisper file and real-time microphone transcription on VIM 5."
+  short_description: "VIM 5 vision and configurable Whisper/AML ASR input."
+  default_prompt: "Use $khadas-vim-5-npu to run or troubleshoot bundled YOLOv8n vision inference or configurable Whisper/AML ASR microphone transcription on VIM 5."

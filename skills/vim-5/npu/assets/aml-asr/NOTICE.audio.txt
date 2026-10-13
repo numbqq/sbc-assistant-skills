@@ -1,0 +1,8 @@
+Audio capture/channel conversion and windowed-sinc resampling:
+Copyright (C) 2026 Amlogic, Inc. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+Derived from whisper/cpp/src/realtime_audio.cpp in the aml-asr native application.
+License text: https://www.apache.org/licenses/LICENSE-2.0
+
+Vendor AAI SDK/model: supplied as-is. No additional open-source license is assigned.
+Source package: ARM64 Linux AAI SDK 3.1.2, build 2026-10-10, cid a2002e8e9.

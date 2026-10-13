@@ -1,6 +1,6 @@
 ---
 name: khadas-vim-5-npu
-description: VIM 5 8 TOPS NPU application helper for Amlogic AMLNNLite workflows in the amlnnlite_py310 conda environment, including bundled YOLOv8n image/camera demos and bundled Whisper file or real-time microphone transcription. Use when setting up, running, adapting, or debugging VIM 5 ADLA inference, NPU dependencies, USB camera input, ALSA microphone input, speech recognition, or automatic spoken-language detection.
+description: Run or troubleshoot VIM 5 NPU inference, USB camera detection, and local microphone transcription using bundled YOLOv8n, Whisper, or AML ASR runtimes. Includes Picoclaw voice backend configuration, PDM/analog capture, and AMLNNLite Python environment checks.
 ---
 
 # VIM 5 NPU
@@ -19,12 +19,13 @@ Supported initial target:
 - YOLOv8n ADLA USB camera input with VIM 5 expansion-board SPI LCD summaries using `scripts/vim-5_yolov8n_usb_camera_spi_lcd.py`
 - Whisper ADLA file transcription and endpointed real-time microphone transcription with `scripts/vim-5_whisper.py`
 - Picoclaw local voice input with the bundled VIM 5 ARM64 JSONL runtime at `assets/whisper/bin/whisper_demo`
+- AML ASR SDK 3.1.2 real-time transcription and Picoclaw JSONL input with `assets/aml-asr/run.sh`
 - Automatic Whisper language detection or an explicitly selected language such as `zh` or `en`
 - VIM 5 PDM Mic Array capture from `hw:0,3` and analog MIC capture from `hw:0,1`
 - Conda Python environment setup and runtime checks for `amlnnlite`, `cv2`, `numpy`, `transformers`, `librosa`, `.adla` model files, bundled scripts and assets, `/dev/video*`, and `arecord`
 - ADLA device visibility checks for `/dev/adla*` and `/sys/class/adla/adla*`
 
-The required YOLOv8n and Whisper `.adla` models, YOLOv8n sample image, and Whisper tokenizer are bundled under `assets/`. Do not hard-code or call any external reference-code path such as `~/whisper` in this skill. Treat external examples only as references for code logic.
+The required YOLOv8n/Whisper models and AML ASR model parts/runtime libraries are bundled under `assets/`. Do not hard-code external source paths such as `~/whisper` or `~/aml-asr` for runtime commands. Treat external examples only as references for code logic. C++ Whisper and AML ASR do not require the Python environment below; use it for Python inference scripts.
 
 ## Default paths
 
@@ -47,6 +48,11 @@ assets/yolov8n/input/test_image.png
 assets/whisper/model/whisper_encoder_static_sim_w8a16.adla
 assets/whisper/model/whisper_decoder_static_sim_w8a16.adla
 assets/whisper/tokenizer/
+assets/aml-asr/run.sh
+assets/aml-asr/bin/asr_realtime
+assets/aml-asr/assemble-model.sh
+assets/aml-asr/model/PARTS_SHA256SUMS.txt
+assets/aml-asr/model/MODEL_SHA256SUMS.txt
 ```
 
 The files below `assets/whisper/` form a self-contained runtime for Picoclaw's
@@ -183,7 +189,7 @@ For Picoclaw `local_voice`, run the bundled JSONL producer from
   --device hw:0,3 \
   --capture-rate 48000 \
   --capture-channels 6 \
-  --mic-channel 0 \
+  --mic-channel 2 \
   --language zh \
   --output-format jsonl
 ```
@@ -203,7 +209,7 @@ conda run -n amlnnlite_py310 python scripts/vim-5_whisper.py \
   --device hw:0,3 \
   --capture-rate 48000 \
   --capture-channels 6 \
-  --mic-channel 0 \
+  --mic-channel 2 \
   --language auto
 ```
 
@@ -224,6 +230,25 @@ Only after the route command succeeds, use the analog MIC capture settings (`are
 ```
 
 Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to average all captured channels. Keep quiet during the initial ambient-noise calibration. For faster finalization, reduce `--silence-ms` from 1000 to about 700; if speech is missed, lower `--energy-threshold` or `--min-energy-threshold` carefully.
+
+## AML ASR and selectable Picoclaw input
+
+Use `references/vim-5-npu-aml-asr.md` for the installed ARM64 runtime,
+model assembly/SHA validation, microphone or fixed PCM tests, and backend
+switching. After skill installation, assemble the ten bundled model parts:
+
+```bash
+bash assets/aml-asr/assemble-model.sh
+bash assets/aml-asr/run.sh --mic-channel 2 --language zh
+```
+
+The packaged model needs about 455 MiB extra disk space after assembly.
+Stop other producers using the same microphone before testing. In the product
+repository, `runtime/configure-picoclaw-vibe-hook --voice --asr-backend aml-asr`
+selects AML ASR; `--asr-backend whisper` restores Whisper. Restart one Gateway.
+Do not substitute an old AML ASR binary without JSONL sequence support;
+`bash assets/aml-asr/run.sh --protocol-version` must return
+`local-voice-jsonl-v1`. Only finalized transcripts reach the assistant.
 
 ## Troubleshooting
 
@@ -246,3 +271,4 @@ Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to ave
 
 - Consult `references/vim-5-npu-yolov8n.md` for YOLOv8n command patterns and example-specific notes.
 - Consult `references/vim-5-npu-whisper.md` for Whisper assets, language handling, microphone profiles, VAD tuning, and validation steps.
+- Consult `references/vim-5-npu-aml-asr.md` for AML ASR assets, model assembly, protocol and backend configuration.

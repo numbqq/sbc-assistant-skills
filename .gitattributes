@@ -1,0 +1,4 @@
+/skills/vim-5/npu/assets/aml-asr/bin/* -filter binary
+/skills/vim-5/npu/assets/aml-asr/lib/*.so* -filter binary
+/skills/vim-5/npu/assets/aml-asr/model/*.nb.part* -filter binary
+/skills/vim-5/npu/assets/aml-asr/input/*.wav -filter binary

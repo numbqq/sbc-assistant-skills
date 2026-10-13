@@ -258,7 +258,16 @@ Install a single skill:
 ./scripts/install.sh --tool codex --skill skills/vim-5/npu
 ```
 
-Preview source and target paths without copying files:
+Installing `khadas-vim-5-npu` automatically verifies and assembles the bundled
+AML ASR model, including on reinstallation. No separate assembly command is
+required. Preparation runs in a temporary directory before replacing the old
+skill; invalid/missing parts or preparation errors fail the installation and
+keep the previous skill. Allow about 455 MiB for the assembled model in addition
+to its parts and runtime assets; during updates, both old and new installations
+temporarily occupy space. OpenClaw prepares the model inside its converted
+`skill/` bundle. Other skills keep their existing install behavior.
+
+Preview source and target paths without copying or assembling files:
 
 ```bash
 ./scripts/install.sh --dry-run

@@ -17,9 +17,13 @@ are needed at runtime. The board supplies NPU drivers, libnnsdk/libadla, and
 - `SOURCE_SHA256SUMS.txt`: source hashes for the packaged binary, built from the
   `aml-asr` repository's `c54d7c52c39be5b3694e8803850f8064bc045bdc`.
 
-After installing the skill, run `bash assemble-model.sh` from this directory.
-It needs about 455 MiB additional disk space and can also run on a developer
-host. Verify `sha256sum -c SHA256SUMS.txt` and
+`scripts/install.sh` automatically verifies the parts and assembles the model
+when installing or reinstalling this skill. Preparation happens before the
+previous installation is replaced; failure keeps the old skill and returns an
+error. Assembly needs about 455 MiB additional disk space. Updates temporarily
+need room for both old and new skill bundles. Direct copies or older installers
+still need `bash assemble-model.sh` from this directory; it also works on a
+developer host. Verify `sha256sum -c SHA256SUMS.txt` and
 `(cd model && sha256sum -c MODEL_SHA256SUMS.txt)` before release.
 
 `bash run.sh --protocol-version` must print `local-voice-jsonl-v1`. Old native

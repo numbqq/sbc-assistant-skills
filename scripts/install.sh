@@ -222,6 +222,26 @@ skill_name_for_dir() {
   printf '%s\n' "$agent_name"
 }
 
+install_npu_bundle() (
+  # Prepare the model before replacing an installed skill. A bad part or full
+  # filesystem must not remove the currently working installation.
+  set -euo pipefail
+  local bundle_source="$1"
+  local bundle_target="$2"
+  local asset_subdir="$3"
+  local staging_dir
+  staging_dir=$(mktemp -d "$(dirname "$bundle_target")/.khadas-vim-5-npu.install.XXXXXXXX")
+  trap 'rm -rf -- "$staging_dir"' EXIT
+  cp -a "$bundle_source/." "$staging_dir/"
+  echo "Preparing AML ASR model for $bundle_target"
+  if ! bash "$staging_dir/$asset_subdir/assemble-model.sh"; then
+    echo "AML ASR model preparation failed; existing skill was kept: $bundle_target" >&2
+    exit 1
+  fi
+  rm -rf -- "$bundle_target"
+  mv -- "$staging_dir" "$bundle_target"
+)
+
 install_skill_for_tool() {
   local tool="$1"
   local source_dir="$2"
@@ -246,11 +266,19 @@ install_skill_for_tool() {
   echo "target=$target_dir"
 
   if [ "$DRY_RUN" = "yes" ]; then
+    if [ "$agent_name" = "khadas-vim-5-npu" ]; then
+      echo "prepare=verify and assemble bundled AML ASR model after copying (dry-run: not executed)"
+    fi
     return 0
   fi
 
   mkdir -p "$target_root"
-  if [ "$tool" = "claude-code" ]; then
+  if [ "$agent_name" = "khadas-vim-5-npu" ] && [ "$tool" != "openclaw" ]; then
+    install_npu_bundle "$source_dir" "$target_dir" "assets/aml-asr"
+    if [ "$tool" = "claude-code" ]; then
+      rm -f "$target_root/$agent_name.md"
+    fi
+  elif [ "$tool" = "claude-code" ]; then
     rm -f "$target_root/$agent_name.md"
     rm -rf "$target_dir"
     cp -a "$source_dir" "$target_dir"
@@ -265,8 +293,12 @@ install_skill_for_tool() {
       exit 1
     fi
 
-    rm -rf "$target_dir"
-    cp -a "$converted_source" "$target_dir"
+    if [ "$agent_name" = "khadas-vim-5-npu" ]; then
+      install_npu_bundle "$converted_source" "$target_dir" "skill/assets/aml-asr"
+    else
+      rm -rf "$target_dir"
+      cp -a "$converted_source" "$target_dir"
+    fi
   else
     rm -rf "$target_dir"
     cp -a "$source_dir" "$target_dir"

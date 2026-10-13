@@ -235,10 +235,11 @@ Use `--mic-channel 1` to select the second channel or `--mic-channel mix` to ave
 
 Use `references/vim-5-npu-aml-asr.md` for the installed ARM64 runtime,
 model assembly/SHA validation, microphone or fixed PCM tests, and backend
-switching. After skill installation, assemble the ten bundled model parts:
+switching. The registry installer automatically assembles and verifies the ten
+model parts when installing/reinstalling the skill. For direct copies or an
+older installer, run `bash assets/aml-asr/assemble-model.sh` manually. Then test:
 
 ```bash
-bash assets/aml-asr/assemble-model.sh
 bash assets/aml-asr/run.sh --mic-channel 2 --language zh
 ```
 

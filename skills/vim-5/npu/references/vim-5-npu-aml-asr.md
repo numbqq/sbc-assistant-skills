@@ -10,9 +10,10 @@ ALSA capture device at a time.
 
 ```bash
 sudo apt-get install alsa-utils
+# Run from the skill registry repository; assembly is automatic.
+bash scripts/install.sh --tool picoclaw --skill khadas-vim-5-npu
 cd "$HOME/.picoclaw/workspace/skills/khadas-vim-5-npu/assets/aml-asr"
 sha256sum -c SHA256SUMS.txt
-bash assemble-model.sh
 bash run.sh --protocol-version
 LD_LIBRARY_PATH="$PWD/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd bin/asr_realtime
 ```
@@ -23,7 +24,11 @@ existing model. Move the bad generated `.nb` aside, then retry. Installed
 assets remain independent of `~/aml-asr`. Debian 12 ARM64 requires the board's
 matching libnnsdk/NPU runtime and an accessible `/dev/adla0`; any `not found`
 library prevents startup. No Conda environment or OpenCC is required for AML
-ASR itself. Skill reinstallation replaces the directory, so assemble again.
+ASR itself. The installer assembles and verifies the model automatically on
+installation/reinstallation before replacing the old directory. Failure keeps
+the previous skill. Updates temporarily need space for both bundles.
+Direct file copies or older installers still need `bash assemble-model.sh`;
+it is also available for manual verification/recovery.
 
 ## Independent microphone test
 

@@ -20,8 +20,6 @@ KEY_HELPER="$SCRIPT_DIR/key_input.py"
 KEY_DEVICE="/dev/input/event3"
 KEY_NAME="adc_keypad"
 GSENSOR_HELPER="$SCRIPT_DIR/gsensor_input.py"
-GSENSOR_DEVICE="/dev/input/event0"
-GSENSOR_NAME="kxtj3_accel"
 OVERLAY_CONFIG="/boot/dtb/amlogic/kvim-5.dtb.overlay.env"
 OVERLAY_DIR="/boot/dtb/amlogic/kvim-5.dtb.overlays"
 EXT_BOARD_CODEC_OVERLAY="ext-board-codec"
@@ -507,29 +505,6 @@ key_status() {
   fi
 }
 
-gsensor_status() {
-  echo "accelerometer=G-sensor"
-  echo "device=$GSENSOR_DEVICE"
-  echo "expected_name=$GSENSOR_NAME"
-  echo "axis_codes=x:ABS_X(0),y:ABS_Y(1),z:ABS_Z(2)"
-  echo "axis_orientation_reference=top_view_USB-A_edge_at_top_HDMI_IN_edge_at_bottom_Gsensor_near_left_edge"
-  echo "axis_x_positive=USB-A_edge"
-  echo "axis_x_negative=HDMI_IN_edge"
-  echo "axis_y_positive=left_Gsensor_edge"
-  echo "axis_y_negative=right_USB-A_2_0_edge"
-  echo "axis_z_positive=component_side_up"
-  echo "axis_z_negative=board_back_side"
-  echo "units=raw input-event values"
-  if [ -e "$GSENSOR_DEVICE" ]; then
-    echo "device_node=present:$GSENSOR_DEVICE"
-  else
-    echo "device_node=missing:$GSENSOR_DEVICE"
-    echo "gsensor_ready=no"
-    echo "note=VIM 5 G-sensor is expected at $GSENSOR_DEVICE as $GSENSOR_NAME"
-    return 1
-  fi
-}
-
 ext_board_analog_mic_status() {
   echo "analog_mic=extension_board_codec"
   echo "required_overlay=$EXT_BOARD_CODEC_OVERLAY"
@@ -915,7 +890,6 @@ case "${1:-}" in
   gsensor|g-sensor|accel|accelerometer)
     case "${2:-}" in
       status)
-        gsensor_status
         need_cmd python3
         test -f "$GSENSOR_HELPER" || { echo "missing G-sensor helper: $GSENSOR_HELPER" >&2; exit 1; }
         python3 "$GSENSOR_HELPER" status

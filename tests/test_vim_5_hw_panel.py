@@ -15,6 +15,7 @@ HELPER_PATH = (
     / "vim-5_hw_panel.py"
 )
 
+sys.path.insert(0, str(HELPER_PATH.parent))
 spec = importlib.util.spec_from_file_location("vim_5_hw_panel", HELPER_PATH)
 vim_5_hw_panel = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = vim_5_hw_panel
@@ -100,8 +101,7 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
         self.assertEqual(vim_5_hw_panel.FUNC_KEY_DEVICE, Path("/dev/input/event3"))
         self.assertEqual(vim_5_hw_panel.FUNC_KEY_NAME, "adc_keypad")
 
-    def test_gsensor_uses_vim_5_event0(self):
-        self.assertEqual(vim_5_hw_panel.GSENSOR_DEVICE, Path("/dev/input/event0"))
+    def test_gsensor_uses_vim_5_name(self):
         self.assertEqual(vim_5_hw_panel.GSENSOR_NAME, "kxtj3_accel")
         self.assertIn("+X=USB-A edge", vim_5_hw_panel.GSENSOR_AXIS_ORIENTATION)
         self.assertIn("+Y=left/Gsensor edge", vim_5_hw_panel.GSENSOR_AXIS_ORIENTATION)
@@ -113,6 +113,18 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
 
         self.assertEqual(status.state, "missing")
         self.assertIn("kxtj3_accel", status.detail)
+
+    def test_gsensor_panel_discovers_current_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            device = Path(tmp) / "event4"
+            device.touch()
+            with mock.patch.object(vim_5_hw_panel, "find_gsensor_device", return_value=device), \
+                    mock.patch.object(vim_5_hw_panel.os, "open", return_value=42), \
+                    mock.patch.object(vim_5_hw_panel, "input_device_name", return_value="kxtj3_accel"), \
+                    mock.patch.object(vim_5_hw_panel.os, "close"):
+                status = vim_5_hw_panel.gsensor_status()
+        self.assertEqual(status.state, "ready")
+        self.assertIn("event4", status.detail)
 
     def test_expansion_board_constants_use_vim_5_paths(self):
         self.assertEqual(vim_5_hw_panel.EXPANSION_GREEN_LED_PATH, Path("/sys/class/leds/green_led"))

@@ -3,6 +3,7 @@ import io
 import os
 import struct
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -29,6 +30,38 @@ def pack_event(event_type, code, value, seconds=1, microseconds=2):
 
 
 class GsensorInputTest(unittest.TestCase):
+    def test_discovery_follows_name_after_renumbering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sys_root, dev_root = Path(tmp) / "sys", Path(tmp) / "dev"
+            dev_root.mkdir()
+            for number, name in [(0, "input_btrcu"), (4, "kxtj3_accel")]:
+                folder = sys_root / f"event{number}" / "device"
+                folder.mkdir(parents=True)
+                (folder / "name").write_text(name + "\n")
+                (dev_root / f"event{number}").touch()
+            self.assertEqual(gsensor_input.find_gsensor_device(
+                sys_root=sys_root, dev_root=dev_root), dev_root / "event4")
+            (sys_root / "event4").rename(sys_root / "event9")
+            (dev_root / "event4").rename(dev_root / "event9")
+            self.assertEqual(gsensor_input.find_gsensor_device(
+                sys_root=sys_root, dev_root=dev_root), dev_root / "event9")
+            (dev_root / "event9").unlink()
+            with self.assertRaisesRegex(RuntimeError, "kxtj3_accel not found"):
+                gsensor_input.find_gsensor_device(sys_root=sys_root, dev_root=dev_root)
+
+    def test_cli_defaults_to_discovery_and_preserves_override(self):
+        self.assertIsNone(gsensor_input.build_parser().parse_args(["status"]).device)
+        self.assertEqual(gsensor_input.build_parser().parse_args(
+            ["--device", "/dev/input/event4", "status"]).device, Path("/dev/input/event4"))
+
+    def test_sample_rejects_wrong_explicit_device(self):
+        with mock.patch.object(gsensor_input, "open_gsensor_device", return_value=42), \
+                mock.patch.object(gsensor_input, "device_name", return_value="input_btrcu"), \
+                mock.patch.object(gsensor_input.os, "close") as close:
+            with self.assertRaisesRegex(RuntimeError, "expected kxtj3_accel"):
+                gsensor_input.wait_for_sample(Path("/dev/input/event0"), "kxtj3_accel", 1, False)
+            close.assert_called_once_with(42)
+
     def test_parse_abs_axis_event(self):
         event = gsensor_input.parse_input_event(pack_event(gsensor_input.EV_ABS, gsensor_input.ABS_X, -123))
 

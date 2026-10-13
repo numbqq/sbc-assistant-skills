@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from gsensor_input import find_gsensor_device
 
 LED_PATH = Path("/sys/class/leds/pwmled")
 EXPANSION_GREEN_LED_PATH = Path("/sys/class/leds/green_led")
@@ -23,7 +24,6 @@ SPI_DEVICE = Path("/dev/spidev1.0")
 UART_DEVICE = Path("/dev/ttyS4")
 FUNC_KEY_DEVICE = Path("/dev/input/event3")
 FUNC_KEY_NAME = "adc_keypad"
-GSENSOR_DEVICE = Path("/dev/input/event0")
 GSENSOR_NAME = "kxtj3_accel"
 GSENSOR_AXIS_ORIENTATION = (
     "+X=USB-A edge; -X=HDMI IN edge; "
@@ -435,7 +435,12 @@ def render_func_key_status() -> str:
     return render_status_items("Func Key Status", [func_key_status()])
 
 
-def gsensor_status(device: Path = GSENSOR_DEVICE) -> StatusItem:
+def gsensor_status(device: Path | None = None) -> StatusItem:
+    if device is None:
+        try:
+            device = find_gsensor_device(GSENSOR_NAME)
+        except RuntimeError as exc:
+            return StatusItem("G-sensor", "missing", str(exc))
     if not device.exists():
         return StatusItem("G-sensor", "missing", f"missing {device}; expected {GSENSOR_NAME}")
     try:

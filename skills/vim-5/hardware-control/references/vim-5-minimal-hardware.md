@@ -10,7 +10,7 @@
 - SPI: Linux `/dev/spidev1.0` plus Python `SPI_IOC_MESSAGE` ioctl helper
 - UART: Linux `/dev/ttyS4` plus Python `termios` helper
 - Func key: Linux input `/dev/input/event3` with device name `adc_keypad`
-- G-sensor / accelerometer: Linux input `/dev/input/event0` with device name `kxtj3_accel`; measured VIM 5 orientation is `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`
+- G-sensor / accelerometer: Linux input `/dev/input/event*` with device name `kxtj3_accel`; measured VIM 5 orientation is `+X=USB-A edge`, `-X=HDMI IN edge`, `+Y=left/Gsensor edge`, `-Y=right/USB-A 2.0 edge`, `+Z=component side up`
 - LED: `/sys/class/leds/pwmled`
 - FAN: `/usr/local/bin/fan.sh`
 - Expansion-board green LED: `/sys/class/leds/green_led`
@@ -402,10 +402,10 @@ If reading `/dev/input/event3` fails with permission denied, run with `sudo` or 
 The onboard VIM 5 G-sensor / accelerometer is exposed as a Linux input event device:
 
 ```bash
-/dev/input/event0
+/dev/input/event*
 ```
 
-The expected device name is `kxtj3_accel`. Treat this as read-only input, not as GPIO, I2C, or SPI. The helper reports raw input-event values for `EV_ABS` axis codes `ABS_X`, `ABS_Y`, and `ABS_Z`; do not convert them to g units unless the target image's scale is known.
+Discover the current node through `/sys/class/input/event*/device/name` using the exact name `kxtj3_accel`; never assume a fixed event number. The helpers perform this discovery automatically and verify the opened device name. Treat this as read-only input, not as GPIO, I2C, or SPI. The helper reports raw input-event values for `EV_ABS` axis codes `ABS_X`, `ABS_Y`, and `ABS_Z`; do not convert them to g units unless the target image's scale is known.
 
 Measured VIM 5 axis orientation for top view with the USB-A connectors on the top edge, HDMI IN on the bottom edge, and the G-sensor near the left edge:
 
@@ -450,7 +450,7 @@ python3 scripts/gsensor_input.py listen --count 10
 python3 scripts/gsensor_input.py sample --json
 ```
 
-If reading `/dev/input/event0` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.
+If reading `/dev/input/event*` fails with permission denied, run with `sudo` or add the user to the Linux `input` group.
 
 ## Expansion-board commands
 

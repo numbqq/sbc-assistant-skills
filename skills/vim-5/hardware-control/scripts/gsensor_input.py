@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-GSENSOR_DEVICE = Path("/dev/input/event0")
 GSENSOR_DEVICE_NAME = "kxtj3_accel"
 
 EV_SYN = 0x00
@@ -83,6 +82,22 @@ def open_gsensor_device(device: Path) -> int:
     return os.open(device, os.O_RDONLY | os.O_NONBLOCK)
 
 
+def find_gsensor_device(expected_name: str = GSENSOR_DEVICE_NAME,
+                        sys_root: Path = Path("/sys/class/input"),
+                        dev_root: Path = Path("/dev/input")) -> Path:
+    for event in sorted(sys_root.glob("event*")):
+        if not event.name[5:].isdigit():
+            continue
+        try:
+            name = (event / "device/name").read_text().strip()
+        except OSError:
+            continue
+        device = dev_root / event.name
+        if name == expected_name and device.exists():
+            return device
+    raise RuntimeError(f"input device {expected_name} not found in {sys_root}")
+
+
 def print_axis_orientation() -> None:
     print(f"axis_orientation_reference={AXIS_ORIENTATION_REFERENCE}")
     for axis in ("x", "y", "z"):
@@ -91,7 +106,14 @@ def print_axis_orientation() -> None:
         print(f"axis_{axis}_negative={orientation['negative']}")
 
 
-def print_status(device: Path, expected_name: str) -> int:
+def print_status(device: Path | None, expected_name: str) -> int:
+    if device is None:
+        try:
+            device = find_gsensor_device(expected_name)
+        except RuntimeError as exc:
+            print("gsensor_ready=no")
+            print(f"note={exc}")
+            return 1
     print(f"accelerometer=G-sensor")
     print(f"device={device}")
     print(f"expected_name={expected_name}")
@@ -187,7 +209,9 @@ def ensure_expected_device(fd: int, device: Path, expected_name: str) -> None:
         raise RuntimeError(f"{device} name is {name or 'unknown'}, expected {expected_name}")
 
 
-def wait_for_sample(device: Path, expected_name: str, timeout: float, json_output: bool) -> int:
+def wait_for_sample(device: Path | None, expected_name: str, timeout: float, json_output: bool) -> int:
+    if device is None:
+        device = find_gsensor_device(expected_name)
     try:
         fd = open_gsensor_device(device)
     except PermissionError as exc:
@@ -206,7 +230,9 @@ def wait_for_sample(device: Path, expected_name: str, timeout: float, json_outpu
         os.close(fd)
 
 
-def listen_for_samples(device: Path, expected_name: str, count: int | None, json_output: bool) -> int:
+def listen_for_samples(device: Path | None, expected_name: str, count: int | None, json_output: bool) -> int:
+    if device is None:
+        device = find_gsensor_device(expected_name)
     try:
         fd = open_gsensor_device(device)
     except PermissionError as exc:
@@ -236,8 +262,8 @@ def positive_int(value: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Read the Khadas VIM 5 G-sensor from /dev/input/event0.")
-    parser.add_argument("--device", type=Path, default=GSENSOR_DEVICE, help="Input event device. Default: /dev/input/event0.")
+    parser = argparse.ArgumentParser(description="Read the Khadas VIM 5 G-sensor by input device name.")
+    parser.add_argument("--device", type=Path, help="Override input node; default: discover by --expected-name.")
     parser.add_argument("--expected-name", default=GSENSOR_DEVICE_NAME, help="Expected input device name. Default: kxtj3_accel.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

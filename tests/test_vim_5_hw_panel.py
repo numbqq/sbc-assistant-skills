@@ -158,7 +158,7 @@ class VimFiveHardwarePanelMappingTest(unittest.TestCase):
         self.assertIn("spi1-lcd", text)
         self.assertIn("/dev/spidev1.0", text)
         self.assertIn("skills/vim-5/hardware-control/scripts/spi_lcd_st7735.py", text)
-        self.assertNotIn(str(Path.home() / "sbc-assistant-skills"), text)
+        self.assertNotIn(str(Path.home() / "sbc-device-skills"), text)
         self.assertIn("python3-spidev gpiod python3-libgpiod", text)
         self.assertIn("shared pins", text)
 

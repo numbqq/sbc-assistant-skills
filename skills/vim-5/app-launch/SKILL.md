@@ -9,7 +9,7 @@ description: Use when you need to open, close, identify, or request generation o
 
 Use this skill when the request is to start, stop, identify, or request generation of a VIM 5 app such as `gsensor-ball`, `bouncing-ball`, or a new generated app. The launcher and its control socket are the source of truth. Do not restart `run-ui` if it is already running, and do not call `python3 apps/<app-id>/main.py` directly.
 
-Repository path on the target board is `/home/khadas/v5-block-example`. If the current working directory is not that repository, run `/home/khadas/v5-block-example/runtime/control-app ...` instead of a relative `runtime/control-app ...` command.
+Repository path on the target board is `/home/khadas/v5b-platform`. If the current working directory is not that repository, run `/home/khadas/v5b-platform/runtime/control-app ...` instead of a relative `runtime/control-app ...` command.
 
 ## Workflow
 

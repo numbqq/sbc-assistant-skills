@@ -2,7 +2,7 @@
 
 The running launcher listens on `VIBE_CONTROL_SOCKET` or `XDG_RUNTIME_DIR/vibe-control.sock`.
 
-Use `/home/khadas/v5-block-example/runtime/control-app` when the agent is not already running from `/home/khadas/v5-block-example`.
+Use `/home/khadas/v5b-platform/runtime/control-app` when the agent is not already running from `/home/khadas/v5b-platform`.
 
 ## Commands
 

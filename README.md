@@ -1,7 +1,13 @@
-# SBC Assistant Skills
+# SBC Device Skills
 
-AI assistant skills and helper scripts for single-board computer hardware,
+Device skills and helper scripts for AI agents using single-board computer hardware,
 accelerators, system debugging, and board-specific workflows.
+
+The source checkout is `sbc-device-skills`; installed skill IDs such as
+`khadas-vim-5-app-launch` and `khadas-vim-5-npu` stay the same.
+Existing platform deployments should follow the companion
+[directory migration guide](../v5b-platform/docs/RENAMING.md), then reinstall
+app-launch to update its platform path.
 
 This repository is a reusable skill registry. Skills are stored once in Codex
 skill format under `skills/`, then converted or installed into the matching
@@ -337,7 +343,7 @@ reinstalling the same skill is the supported update path.
 If you installed from a git checkout:
 
 ```bash
-cd sbc-assistant-skills
+cd sbc-device-skills
 git pull
 ./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
 ```
@@ -346,7 +352,7 @@ If you installed from a downloaded release archive, download and extract the new
 release, then run the installer from the extracted repository:
 
 ```bash
-cd sbc-assistant-skills
+cd sbc-device-skills
 ./scripts/install.sh --tool codex --skill khadas-vim-5-hardware-control
 ```
 

@@ -9,14 +9,23 @@ description: Use when you need to open, close, identify, or request generation o
 
 Use this skill when the request is to start, stop, identify, or request generation of a VIM 5 app such as `gsensor-ball`, `bouncing-ball`, or a new generated app. The launcher and its control socket are the source of truth. Do not restart `run-ui` if it is already running, and do not call `python3 apps/<app-id>/main.py` directly.
 
-Repository path on the target board is `/home/khadas/v5b-platform`. If the current working directory is not that repository, run `/home/khadas/v5b-platform/runtime/control-app ...` instead of a relative `runtime/control-app ...` command.
+Use the bundled `scripts/control-app` wrapper from this skill's directory. In the
+commands below, replace `<skill-dir>` with the actual directory containing this
+SKILL.md; quote it, as directories may contain spaces. Do not assume the agent's
+working directory is the platform checkout.
+
+The wrapper resolves `VIBE_ROOT`, then the binding saved by `install.sh
+--platform-root PATH`, then `VIBE_ROOT` in the selected Picoclaw hook config.
+It delegates to the platform's `runtime/control-app`. If the checkout is moved,
+refresh the hook and reinstall with the new `--platform-root`, or set `VIBE_ROOT`.
+No username or source directory name is required.
 
 ## Workflow
 
-1. For requests to create or regenerate an app, run `runtime/control-app generate --backend picoclaw --prompt "<user request>"`. The launcher owns the loading UI and auto-starts the generated app after success.
+1. For requests to create or regenerate an app, run `python3 "<skill-dir>/scripts/control-app" generate --backend picoclaw --prompt "<user request>"`. The launcher owns the loading UI and auto-starts the generated app after success.
 2. Use `mock` only for local smoke testing when explicitly requested.
-3. For requests to open an existing app, read the app catalog first with `runtime/control-app catalog`, resolve the request to a canonical `app_id`, then run `runtime/control-app start <app_id>`.
-4. Stop the current app with `runtime/control-app stop`.
+3. For requests to open an existing app, read the app catalog first with `python3 "<skill-dir>/scripts/control-app" catalog`, resolve the request to a canonical `app_id`, then run `python3 "<skill-dir>/scripts/control-app" start <app_id>`.
+4. Stop the current app with `python3 "<skill-dir>/scripts/control-app" stop`.
 5. If the catalog does not give a confident match, ask a clarification question instead of guessing.
 6. If the control socket is unavailable, tell the user to start `run-ui` first.
 
@@ -25,9 +34,9 @@ Repository path on the target board is `/home/khadas/v5b-platform`. If the curre
 - Treat the catalog as authoritative.
 - Prefer exact `app_id` matches over exact name matches.
 - Use aliases only when the catalog returns them.
-- `generated-demo` is the generated output slot, not a normal app shortcut for creation requests. Never satisfy a "create/make/generate/build/develop/modify an app" request by running `runtime/control-app start generated-demo`; use `runtime/control-app generate --backend picoclaw --prompt "<user request>"` instead.
+- `generated-demo` is the generated output slot, not a normal app shortcut for creation requests. Never satisfy a "create/make/generate/build/develop/modify an app" request by running `python3 "<skill-dir>/scripts/control-app" start generated-demo`; use `python3 "<skill-dir>/scripts/control-app" generate --backend picoclaw --prompt "<user request>"` instead.
 - Never invent a command path, never spawn the Python entrypoint directly, and never launch `run-ui` a second time from this skill.
-- If `VIBE_PICOCLAW_INTERNAL_GENERATION=1`, do not call `runtime/control-app`; follow the generator prompt and write files directly under the requested app directory.
+- If `VIBE_PICOCLAW_INTERNAL_GENERATION=1`, do not call the control wrapper; follow the generator prompt and write files directly under the requested app directory.
 
 ## Generation notes
 

@@ -2,17 +2,17 @@
 
 The running launcher listens on `VIBE_CONTROL_SOCKET` or `XDG_RUNTIME_DIR/vibe-control.sock`.
 
-Use `/home/khadas/v5b-platform/runtime/control-app` when the agent is not already running from `/home/khadas/v5b-platform`.
+Use the bundled wrapper: replace `<skill-dir>` with the actual directory containing SKILL.md. It resolves the platform independently of the agent working directory.
 
 ## Commands
 
 ```bash
-runtime/control-app catalog
-runtime/control-app list
-runtime/control-app status
-runtime/control-app start <app_id>
-runtime/control-app stop
-runtime/control-app generate --backend picoclaw --prompt "<prompt>"
+python3 "<skill-dir>/scripts/control-app" catalog
+python3 "<skill-dir>/scripts/control-app" list
+python3 "<skill-dir>/scripts/control-app" status
+python3 "<skill-dir>/scripts/control-app" start <app_id>
+python3 "<skill-dir>/scripts/control-app" stop
+python3 "<skill-dir>/scripts/control-app" generate --backend picoclaw --prompt "<prompt>"
 ```
 
 ## Catalog shape
@@ -47,9 +47,9 @@ For requests like "gsensor 小球" or "打开小球应用", do not assume a file
 
 ## Generation flow
 
-Use `runtime/control-app generate` when the user wants a new app or a new variant. Use `--backend picoclaw` for real dynamic generation. Use `--backend mock` only for local smoke testing when explicitly requested. `VIBE_PICOCLAW_COMMAND` can override the built-in Picoclaw adapter.
+Use `python3 "<skill-dir>/scripts/control-app" generate` when the user wants a new app or a new variant. Use `--backend picoclaw` for real dynamic generation. Use `--backend mock` only for local smoke testing when explicitly requested. `VIBE_PICOCLAW_COMMAND` can override the built-in Picoclaw adapter.
 
-Do not handle a creation request by starting `generated-demo`. `generated-demo` is the generated output slot. It may appear in the catalog after prior generation, but creation requests must go through `runtime/control-app generate --backend picoclaw --prompt "<prompt>"`.
+Do not handle a creation request by starting `generated-demo`. `generated-demo` is the generated output slot. It may appear in the catalog after prior generation, but creation requests must go through `python3 "<skill-dir>/scripts/control-app" generate --backend picoclaw --prompt "<prompt>"`.
 
 Generated apps normally live under `apps/<app-id>/` with `app.json` and `main.py`. That is the platform app installation model. Use a stable app id such as `tank-battle`; do not write generated files outside `apps/`.
 
@@ -68,5 +68,5 @@ Example:
 - Control the running launcher only.
 - Do not execute app scripts directly.
 - Do not start a second `run-ui` instance if one is already active.
-- Do not use `runtime/control-app start generated-demo` for "create/make/generate/build/develop/modify" requests.
+- Do not use `python3 "<skill-dir>/scripts/control-app" start generated-demo` for "create/make/generate/build/develop/modify" requests.
 - For `gsensor-ball`, prefer the canonical ID returned by the catalog, not a guessed script path.

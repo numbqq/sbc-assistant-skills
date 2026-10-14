@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Locate the configured platform, then delegate to its authoritative CLI."""
+
+import json
+import os
+from pathlib import Path
+import sys
+
+
+def expand(value):
+    return Path(value).expanduser().resolve()
+
+
+def platform_root():
+    explicit = os.environ.get("VIBE_ROOT")
+    binding = Path(__file__).resolve().with_name("platform.json")
+    if not explicit and binding.is_file():
+        explicit = json.loads(binding.read_text())["platform_root"]
+    if explicit:
+        root = expand(explicit)
+        if not (root / "runtime/control-app").is_file():
+            raise ValueError(f"Invalid platform root: {root}; reinstall with --platform-root or set VIBE_ROOT")
+        return root
+
+    home = expand(os.environ.get("PICOCLAW_HOME") or "~/.picoclaw")
+    config = expand(os.environ.get("PICOCLAW_CONFIG") or home / "config.json")
+    if config.exists():
+        data = json.loads(config.read_text())
+        hook = ((data.get("hooks") or {}).get("processes") or {}).get("vibe_creation_loader") or {}
+        configured = (hook.get("env") or {}).get("VIBE_ROOT")
+        if configured:
+            root = expand(configured)
+            if not (root / "runtime/control-app").is_file():
+                raise ValueError(f"Hook platform root is unavailable: {root}; refresh the hook configuration")
+            return root
+
+    # Source checkout or an agent whose cwd is already inside the platform.
+    for base in (Path.cwd(), *Path(__file__).resolve().parents):
+        for root in (base, base / "v5b-platform"):
+            if (root / "runtime/control-app").is_file():
+                return root
+    raise ValueError("Cannot locate platform; configure the Vibe hook, set VIBE_ROOT, or install with --platform-root PATH")
+
+
+def main():
+    if os.environ.get("VIBE_PICOCLAW_INTERNAL_GENERATION") == "1":
+        raise ValueError("Internal generation must write app files without controlling the launcher")
+    root = platform_root()
+    if sys.argv[1:] == ["--print-platform-root"]:
+        print(root)
+        return
+    env = dict(os.environ, VIBE_ROOT=str(root))
+    os.execve(sys.executable, [sys.executable, str(root / "runtime/control-app"), *sys.argv[1:]], env)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"app-launch: {exc}", file=sys.stderr)
+        sys.exit(1)

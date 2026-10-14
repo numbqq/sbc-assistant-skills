@@ -23,10 +23,12 @@ import time
 from pathlib import Path
 
 
-HELPER_CANDIDATES = [
-    Path(__file__).with_name("spi_lcd_st7735.py"),
-    Path("/home/khadas/.codex/skills/khadas-vim-5-hardware-control/scripts/spi_lcd_st7735.py"),
-]
+HELPER_CANDIDATES = (
+    [Path(os.environ["VIBE_SPI_LCD_HELPER"]).expanduser()]
+    if os.environ.get("VIBE_SPI_LCD_HELPER")
+    else [Path(__file__).with_name("spi_lcd_st7735.py")]
+)
+
 
 _HELPER_MODULE = None
 _HELPER_PATH: Path | None = None

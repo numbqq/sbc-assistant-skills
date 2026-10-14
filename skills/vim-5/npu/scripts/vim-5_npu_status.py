@@ -14,6 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vim_5_skill_paths import lcd_helper_candidates as _lcd_helper_candidates
+
+
 DEFAULT_CONDA_ENV = "amlnnlite_py310"
 WHEEL_GLOB = "amlnn_edge_toolkit_lite-*-linux_aarch64.whl"
 
@@ -47,10 +51,6 @@ ANALOG_MIC_REQUIRED_OVERLAY = "ext-board-codec"
 ANALOG_MIC_OVERLAY_CONFIG = Path("/boot/dtb/amlogic/kvim-5.dtb.overlay.env")
 ANALOG_MIC_ROUTE_COMMAND = (
     "amixer -c AMLAUGESOUND cset name='TDMIN_B source select' 'tdmin_b'"
-)
-REPO_SPI_LCD_HELPER = SKILL_ROOT.parent / "hardware-control" / "scripts" / "spi_lcd_st7735.py"
-INSTALLED_SPI_LCD_HELPER = (
-    Path.home() / ".codex" / "skills" / "khadas-vim-5-hardware-control" / "scripts" / "spi_lcd_st7735.py"
 )
 
 COMMON_CONDA_PATHS = (
@@ -232,7 +232,7 @@ def overlay_state(config: Path, required_overlay: str) -> str:
 
 
 def spi_lcd_helper_candidates() -> list[Path]:
-    return [REPO_SPI_LCD_HELPER, INSTALLED_SPI_LCD_HELPER]
+    return _lcd_helper_candidates(SKILL_ROOT)
 
 
 def ready_path(paths: list[Path]) -> Path | None:

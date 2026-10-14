@@ -291,6 +291,35 @@ Preview source and target paths without copying or assembling files:
 | PicoClaw | `${PICOCLAW_HOME:-$HOME/.picoclaw}/workspace/skills/` | `PICOCLAW_HOME` | Native skill bundle |
 | OpenClaw | `$HOME/.openclaw/agency-agents/` | `OPENCLAW_AGENTS_DIR` | Agent workspace |
 
+PicoClaw's workspace is resolved in this order: `--workspace PATH`,
+`PICOCLAW_AGENTS_DEFAULTS_WORKSPACE`, `agents.defaults.workspace` in the selected
+config, then `${PICOCLAW_HOME:-$HOME/.picoclaw}/workspace`. `PICOCLAW_CONFIG`
+selects the config file only. Use the same environment when starting the gateway.
+`--local` explicitly selects this repository's workspace and cannot be combined
+with `--workspace`. Invalid JSON stops installation rather than choosing another workspace.
+
+The VIM 5 app-launch skill supports any username and platform checkout name:
+
+```bash
+export PICOCLAW_HOME="$HOME/.picoclaw"
+export VIBE_ROOT="/path/to/my platform"
+./scripts/install.sh --tool picoclaw --skill khadas-vim-5-app-launch --platform-root "$VIBE_ROOT"
+```
+
+`--platform-root` (default: `VIBE_ROOT` or a sibling `v5b-platform`) saves a
+local binding in the installed skill's `scripts/platform.json`; source files
+are unchanged. At runtime, `VIBE_ROOT` overrides that binding. Without a binding,
+the wrapper reads the selected Picoclaw hook configuration, then checks source
+checkout/current-directory ancestors. It fails clearly when a configured root is
+missing. After moving a bound platform, reinstall with the new root and refresh
+the hook. Always invoke `python3 "<actual-skill-dir>/scripts/control-app" ...`;
+`--print-platform-root` prints the resolved root without contacting the UI.
+
+NPU LCD helpers find hardware-control beside the NPU skill, including custom
+PicoClaw workspaces and OpenClaw agent layouts. `CODEX_HOME` is honored for the
+Codex fallback. `VIBE_SPI_LCD_HELPER=/absolute/path/spi_lcd_st7735.py` selects an
+explicit helper; the hardware monitor otherwise uses its bundled sibling.
+
 Generated integration artifacts are written under the ignored
 `integrations/` directory:
 

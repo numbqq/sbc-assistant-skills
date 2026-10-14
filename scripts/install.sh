@@ -6,11 +6,13 @@ SKILL="all"
 DRY_RUN="no"
 LIST_TOOLS="no"
 LOCAL="no"
+WORKSPACE=""
+PLATFORM_ROOT="${VIBE_ROOT:-}"
 
 usage() {
   cat <<USAGE
 Usage:
-  $0 [--tool TOOL] [--skill NAME|all] [--dry-run] [--local]
+  $0 [--tool TOOL] [--skill NAME|all] [--dry-run] [--local] [--workspace PATH] [--platform-root PATH]
   $0 --tool all [--skill NAME|all]
   $0 --list-tools
   $0 --help
@@ -22,6 +24,8 @@ Options:
   --dry-run         Print planned install paths without copying files.
   --local           Install to repo-level dir (.claude/skills/, .gemini/skills/, or .picoclaw/workspace/skills/) instead of the global tool dir.
   --list-tools      Show supported agent/tool targets.
+  --workspace PATH  PicoClaw workspace override (cannot combine with --local).
+  --platform-root PATH  Bind app-launch to this platform checkout; defaults to VIBE_ROOT or a sibling v5b-platform.
   --help            Show this help.
 
 Environment overrides:
@@ -30,6 +34,9 @@ Environment overrides:
   GEMINI_SKILLS_DIR   Gemini CLI skills directory. Default: \$HOME/.gemini/skills
   HERMES_SKILLS_DIR   Hermes skills directory. Default: \$HOME/.hermes/skills
   PICOCLAW_HOME       PicoClaw home directory. Default: \$HOME/.picoclaw
+  PICOCLAW_CONFIG     Selected config.json; reads agents.defaults.workspace.
+  PICOCLAW_AGENTS_DEFAULTS_WORKSPACE  Workspace override, above config.json.
+  VIBE_ROOT           Platform checkout for app-launch (any directory/name).
   OPENCLAW_AGENTS_DIR OpenClaw agents directory. Default: \$HOME/.openclaw/agency-agents
 USAGE
 }
@@ -47,7 +54,20 @@ target_root_for_tool() {
       printf '%s\n' "${HERMES_SKILLS_DIR:-$HOME/.hermes/skills}"
       ;;
     picoclaw)
-      printf '%s\n' "${PICOCLAW_HOME:-$HOME/.picoclaw}/workspace/skills"
+      python3 - "$WORKSPACE" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+home = Path(os.environ.get("PICOCLAW_HOME") or "~/.picoclaw").expanduser()
+workspace = sys.argv[1] or os.environ.get("PICOCLAW_AGENTS_DEFAULTS_WORKSPACE")
+if not workspace:
+    config = Path(os.environ.get("PICOCLAW_CONFIG") or home / "config.json").expanduser()
+    data = json.loads(config.read_text()) if config.exists() else {}
+    workspace = ((data.get("agents") or {}).get("defaults") or {}).get("workspace")
+print(Path(workspace or home / "workspace").expanduser().resolve() / "skills")
+PY
       ;;
     claude-code)
       printf '%s\n' "${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
@@ -131,6 +151,14 @@ while [ "$#" -gt 0 ]; do
       LOCAL="yes"
       shift
       ;;
+    --workspace)
+      WORKSPACE="${2:?workspace path required}"
+      shift 2
+      ;;
+    --platform-root)
+      PLATFORM_ROOT="${2:?platform root required}"
+      shift 2
+      ;;
     --list-tools)
       LIST_TOOLS="yes"
       shift
@@ -160,6 +188,10 @@ if [ "$TOOL" != "all" ] && ! is_supported_tool "$TOOL"; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -n "$WORKSPACE" ] && { [ "$LOCAL" = "yes" ] || { [ "$TOOL" != "picoclaw" ] && [ "$TOOL" != "all" ]; }; }; then
+  echo "--workspace requires --tool picoclaw (or all), without --local" >&2
+  exit 1
+fi
 SOURCE_ROOT="$REPO_ROOT/skills"
 INTEGRATIONS_ROOT="$REPO_ROOT/integrations"
 
@@ -242,6 +274,22 @@ install_npu_bundle() (
   mv -- "$staging_dir" "$bundle_target"
 )
 
+platform_root_for_install() {
+  local candidate="$PLATFORM_ROOT"
+  if [ -z "$candidate" ] && [ -f "$REPO_ROOT/../v5b-platform/runtime/control-app" ]; then
+    candidate="$REPO_ROOT/../v5b-platform"
+  fi
+  [ -n "$candidate" ] || return 0
+  python3 - "$candidate" <<'PYROOT'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1]).expanduser().resolve()
+if not (root / "runtime/control-app").is_file():
+    sys.exit(f"Invalid platform root: {root}; runtime/control-app not found")
+print(root)
+PYROOT
+}
+
 install_skill_for_tool() {
   local tool="$1"
   local source_dir="$2"
@@ -249,6 +297,7 @@ install_skill_for_tool() {
   local agent_name
   local target_dir
   local converted_source
+  local platform_root=""
 
   if [ "$LOCAL" = "yes" ]; then
     if ! target_root="$(local_root_for_tool "$tool")"; then
@@ -261,9 +310,16 @@ install_skill_for_tool() {
   agent_name="$(skill_name_for_dir "$source_dir")"
   target_dir="$target_root/$agent_name"
 
+  if [ "$agent_name" = "khadas-vim-5-app-launch" ]; then
+    platform_root="$(platform_root_for_install)"
+  fi
+
   echo "tool=$tool"
   echo "source=$source_dir"
   echo "target=$target_dir"
+  if [ "$agent_name" = "khadas-vim-5-app-launch" ]; then
+    echo "platform=${platform_root:-auto: VIBE_ROOT or selected Picoclaw hook configuration}"
+  fi
 
   if [ "$DRY_RUN" = "yes" ]; then
     if [ "$agent_name" = "khadas-vim-5-npu" ]; then
@@ -302,6 +358,21 @@ install_skill_for_tool() {
   else
     rm -rf "$target_dir"
     cp -a "$source_dir" "$target_dir"
+  fi
+
+  if [ "$agent_name" = "khadas-vim-5-app-launch" ]; then
+    local skill_target="$target_dir"
+    [ "$tool" != "openclaw" ] || skill_target="$target_dir/skill"
+    python3 - "$skill_target/scripts/platform.json" "$platform_root" <<'PY'
+import json
+from pathlib import Path
+import sys
+binding = Path(sys.argv[1])
+if sys.argv[2]:
+    binding.write_text(json.dumps({"platform_root": sys.argv[2]}, ensure_ascii=False) + "\n")
+else:
+    binding.unlink(missing_ok=True)
+PY
   fi
 
   echo "installed=$target_dir"

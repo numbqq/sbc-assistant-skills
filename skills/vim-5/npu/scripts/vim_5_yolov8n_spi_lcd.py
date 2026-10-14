@@ -13,6 +13,10 @@ from pathlib import Path
 from types import ModuleType
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vim_5_skill_paths import lcd_helper_candidates as _lcd_helper_candidates
+
+
 WIDTH = 160
 HEIGHT = 80
 
@@ -159,12 +163,7 @@ class LcdState:
 
 
 def lcd_helper_candidates() -> tuple[Path, ...]:
-    skill_root = Path(__file__).resolve().parents[1]
-    board_root = skill_root.parent
-    return (
-        board_root / "hardware-control" / "scripts" / "spi_lcd_st7735.py",
-        Path.home() / ".codex" / "skills" / "khadas-vim-5-hardware-control" / "scripts" / "spi_lcd_st7735.py",
-    )
+    return tuple(_lcd_helper_candidates(Path(__file__).resolve().parents[1]))
 
 
 def load_lcd_helper(helper_path: Path | None = None) -> ModuleType:
